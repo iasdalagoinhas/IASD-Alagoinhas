@@ -1311,6 +1311,22 @@ def render_header():
             """,
             unsafe_allow_html=True,
         )
+        nav_1, nav_2, nav_3, nav_4 = st.columns(4)
+        with nav_1:
+            if st.button("Início", key="nav_home", use_container_width=True):
+                go("home")
+        with nav_2:
+            if st.button("Distritos", key="nav_districts", use_container_width=True):
+                go("districts")
+        with nav_3:
+            if st.button("Educação", key="nav_education", use_container_width=True):
+                go("education")
+        with nav_4:
+            label_membros = "Área para membros"
+            if st.session_state.get("user_logged"):
+                label_membros = f"👤 {st.session_state['user_logged']['nome'].split()[0]}"
+            if st.button(label_membros, key="nav_members", use_container_width=True):
+                go("membros")
         return
     title, subtitle = current_section_label()
     st.markdown(
@@ -1340,25 +1356,41 @@ def render_footer(second_text="“Servi ao Senhor com alegria.” — Salmo 100:
 
 # Visualização: Home
 def render_home():
-    st.markdown(
-        """
-        <div class="home-grid">
-            <a href="?view=info&extra=distritos" target="_self">Três Distritos</a>
-            <a href="?view=info&extra=comunidades" target="_self">Vinte e seis igrejas</a>
-            <a href="?view=info&extra=missao" target="_self">Nossa Missão</a>
-            <a href="?view=info&extra=esperanca" target="_self">Nossa Esperança</a>
-            <a href="?view=hoje&extra=prega" target="_self">Veja quem prega hoje</a>
-            <a href="?view=hoje&extra=pastor" target="_self">Onde o pastor está</a>
-            <a href="?view=hoje&extra=ja" target="_self">Onde tem J.A.?</a>
-            <a href="?view=hoje&extra=mes" target="_self">Qual igreja eu prego este mês?</a>
-            <a href="?view=oracao" target="_self">Pedido de oração</a>
-            <a href="?view=estudo" target="_self">Estudo bíblico</a>
-            <a href="?view=education" target="_self">Educação</a>
-            <a href="?view=membros" target="_self">Área para membros</a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        if st.button("Três Distritos", key="btn_stat_1", use_container_width=True):
+            go("info", extra="distritos")
+    with c2:
+        if st.button("Vinte e seis igrejas", key="btn_stat_2", use_container_width=True):
+            go("info", extra="comunidades")
+    with c3:
+        if st.button("Nossa Missão", key="btn_stat_3", use_container_width=True):
+            go("info", extra="missao")
+    with c4:
+        if st.button("Nossa Esperança", key="btn_stat_4", use_container_width=True):
+            go("info", extra="esperanca")
+
+    q1, q2, q3, q4 = st.columns(4)
+    with q1:
+        if st.button("Veja quem prega hoje", key="btn_hoje_prega", use_container_width=True):
+            go("hoje", extra="prega")
+    with q2:
+        if st.button("Onde o pastor está?", key="btn_hoje_pastor", use_container_width=True):
+            go("hoje", extra="pastor")
+    with q3:
+        if st.button("Onde tem J.A.?", key="btn_hoje_ja", use_container_width=True):
+            go("hoje", extra="ja")
+    with q4:
+        if st.button("Qual igreja prego este mês?", key="btn_hoje_mes", use_container_width=True):
+            go("hoje", extra="mes")
+
+    p1, p2 = st.columns(2)
+    with p1:
+        if st.button("Faça seu pedido de oração", key="btn_oracao", use_container_width=True):
+            go("oracao")
+    with p2:
+        if st.button("Solicitar estudo bíblico", key="btn_estudo", use_container_width=True):
+            go("estudo")
 
     st.markdown(
         f"""
