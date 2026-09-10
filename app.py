@@ -33,6 +33,8 @@ USERS_FILE = Path("usuarios_membros.json")
 REMINDERS_FILE = Path("lembretes_whatsapp.json")
 VISITS_FILE = Path("acessos_site.json")
 SESSIONS_FILE = Path("sessoes_login.json")
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 IASD_IMAGE = Path("iasd.jpg")
 COLEGIO_IMAGE = Path("caal.jpg")
 
@@ -793,6 +795,7 @@ def all_special_events():
             title = event.get("title", "Evento especial")
             if title in SKIP_SPECIAL_TITLES:
                 continue
+            key = (title.casefold(), str(event.get("date", "")).casefold(), church["name"])
             rows.append(
                 {
                     "kind": "especial",
@@ -802,9 +805,17 @@ def all_special_events():
                     "date": event.get("date", ""),
                     "description": event.get("description", ""),
                     "poster": event.get("poster", ""),
+                    "_key": key,
                 }
             )
-    return rows
+    seen = set()
+    unique = []
+    for row in rows:
+        if row["_key"] in seen:
+            continue
+        seen.add(row["_key"])
+        unique.append(row)
+    return unique
 
 def home_promos():
     return all_special_events()
@@ -817,18 +828,32 @@ def maps_url(church):
     query = church_address(church)
     return "https://www.google.com/maps/search/?api=1&query=" + html.escape(query, quote=True)
 
-def encode_cartaz(upload):
+def encode_cartaz(upload, stem="cartaz"):
     if upload is None:
         return "", "Nenhuma foto selecionada."
     raw = upload.getvalue()
     if not raw:
         return "", "O arquivo veio vazio. Tente outro."
-    if len(raw) > 1_800_000:
-        return "", "A foto está grande demais (máximo cerca de 1,5 MB). Reduza a imagem e tente de novo."
-    mime = upload.type or "image/jpeg"
-    if mime not in ("image/jpeg", "image/jpg", "image/png", "image/webp"):
-        mime = "image/jpeg"
-    return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}", ""
+    if len(raw) > 4_000_000:
+        return "", "A foto está grande demais (máximo 4 MB). Reduza a imagem e tente de novo."
+    ext = Path(getattr(upload, "name", "") or "").suffix.lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
+    safe_stem = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in stem)[:40]
+    path = UPLOAD_DIR / f"{safe_stem}-{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+    path.write_bytes(raw)
+    return str(path), ""
+
+def show_cartaz(poster):
+    poster = str(poster or "")
+    if not poster:
+        return
+    path = Path(poster)
+    if path.exists():
+        st.image(str(path), use_container_width=True)
+        return
+    if poster.startswith(("data:image", "http://", "https://")):
+        st.image(poster, use_container_width=True)
 
 def church_display_name(name):
     raw = str(name or "").strip()
@@ -1739,23 +1764,17 @@ def render_footer(second_text="“Servi ao Senhor com alegria.” — Salmo 100:
 def render_home():
     utilidade = st.session_state.info_pages.get("utilidade_publica", DEFAULT_INFO["utilidade_publica"])
     if utilidade.get("published") or utilidade.get("poster") or (utilidade.get("title") and utilidade.get("text")):
-        poster = utilidade.get("poster") or ""
-        poster_html = (
-            f'<img src="{poster}" alt="Cartaz" style="width:100%;max-width:520px;border-radius:16px;margin-top:12px;">'
-            if str(poster).startswith(("data:image", "http"))
-            else ""
-        )
         st.markdown(
             f"""
             <div class="info" style="border-left: 6px solid #FFD166; background: #FFFDF9; margin-top: 16px;">
                 <span class="tag">Utilidade Pública</span>
                 <h3 style="margin-top:10px;">{safe(utilidade.get('title', ''))}</h3>
                 <p style="font-size:1.15rem; line-height:1.6;">{safe(utilidade.get('text', ''))}</p>
-                {poster_html}
             </div>
             """,
             unsafe_allow_html=True,
         )
+        show_cartaz(utilidade.get("poster"))
 
     if can_edit():
         if st.button("⚙️ Editar mensagem de Utilidade Pública", key="edit_utilidade_toggle"):
@@ -1770,11 +1789,11 @@ def render_home():
         if st.button("Salvar mensagem e foto", key="save_utilidade_home"):
             poster_uri = utilidade.get("poster") or ""
             if u_foto is not None:
-                poster_uri, erro = encode_cartaz(u_foto)
+                poster_uri, erro = encode_cartaz(u_foto, "utilidade")
                 if erro:
                     st.error(erro)
                     st.stop()
-                st.info("Foto convertida. Gravando...")
+                st.info("Foto recebida. Gravando...")
             st.session_state.info_pages["utilidade_publica"] = {
                 "title": u_title.strip(),
                 "text": u_text.strip(),
@@ -1937,16 +1956,17 @@ def render_membros_page():
                 else:
                     poster_uri = ""
                     if imagem is not None:
-                        poster_uri, erro = encode_cartaz(imagem)
+                        poster_uri, erro = encode_cartaz(imagem, "cartaz")
                         if erro:
                             st.error(erro)
                             st.stop()
                         st.info("Foto recebida. Publicando...")
                     if tipo == "Utilidade pública":
+                        atual = st.session_state.info_pages.get("utilidade_publica") or {}
                         st.session_state.info_pages["utilidade_publica"] = {
-                            "title": titulo.strip(),
-                            "text": texto.strip(),
-                            "poster": poster_uri,
+                            "title": titulo.strip() or atual.get("title", ""),
+                            "text": texto.strip() or atual.get("text", ""),
+                            "poster": poster_uri or atual.get("poster", ""),
                             "published": True,
                         }
                         save_info()
@@ -2555,7 +2575,7 @@ def render_church():
 
     st.markdown("<h2 style='margin-top:2rem;'>Eventos & Programações Especiais</h2>", unsafe_allow_html=True)
     if church.get("special"):
-        for sp in church["special"]:
+        for idx, sp in enumerate(church["special"]):
             st.markdown(
                 f"""
                 <div class="agenda" style="border-left: 5px solid var(--accent-gold);">
@@ -2563,38 +2583,75 @@ def render_church():
                     <h3 style="font-size:1.3rem; margin:6px 0;">{safe(sp.get('title', ''))}</h3>
                     <p style="margin:0; font-size:1.1rem;"><b>Data:</b> {safe(sp.get('date', ''))}</p>
                     <p style="margin:0; font-size:1.05rem; color:#555;">{safe(sp.get('description', ''))}</p>
-                    {f'<img src="{sp.get("poster")}" alt="" style="width:100%;max-width:420px;border-radius:16px;margin-top:12px;">' if str(sp.get("poster") or "").startswith(("data:image", "http")) else ""}
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+            show_cartaz(sp.get("poster"))
+            if can_edit():
+                with st.expander(f"Editar este evento — {sp.get('title', '')}"):
+                    e_title = st.text_input("Título", sp.get("title", ""), key=f"esp_t_{idx}")
+                    e_date = st.text_input("Data", sp.get("date", ""), key=f"esp_d_{idx}")
+                    e_desc = st.text_area("Descrição", sp.get("description", ""), key=f"esp_x_{idx}")
+                    e_foto = st.file_uploader("Trocar cartaz", type=["jpg", "jpeg", "png", "webp"], key=f"esp_f_{idx}")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("Salvar alteração", key=f"esp_save_{idx}"):
+                            poster_uri = sp.get("poster") or ""
+                            if e_foto is not None:
+                                poster_uri, erro = encode_cartaz(e_foto, "especial")
+                                if erro:
+                                    st.error(erro)
+                                else:
+                                    st.info("Nova foto recebida.")
+                            if e_foto is None or poster_uri:
+                                church["special"][idx].update({
+                                    "title": e_title.strip() or sp.get("title", ""),
+                                    "date": e_date.strip() or sp.get("date", ""),
+                                    "description": e_desc.strip(),
+                                    "poster": poster_uri,
+                                })
+                                save_data()
+                                st.success("Evento atualizado.")
+                                st.rerun()
+                    with c2:
+                        if st.button("Excluir evento", key=f"esp_del_{idx}"):
+                            church["special"].pop(idx)
+                            save_data()
+                            st.success("Evento excluído.")
+                            st.rerun()
     else:
         st.info("Nenhum evento especial agendado nesta igreja.")
 
     if can_edit():
         with st.expander("＋ Cadastrar Evento Especial (Ativa Botão na Inicial)"):
-            with st.form("form_special_event", clear_on_submit=True):
-                sp_title = st.text_input("Título do Evento (ex: Santa Ceia, Semana de Oração)")
-                sp_date = st.text_input("Data do Evento (ex: 20 de Setembro)")
-                sp_desc = st.text_area("Descrição / Detalhes")
-                sp_cartaz = st.file_uploader("Cartaz do evento", type=["jpg", "jpeg", "png", "webp"])
-                if st.form_submit_button("Publicar Evento Especial"):
-                    if sp_title.strip() and sp_date.strip():
-                        poster_uri = ""
-                        if sp_cartaz is not None:
-                            mime = sp_cartaz.type or "image/jpeg"
-                            poster_uri = f"data:{mime};base64,{base64.b64encode(sp_cartaz.getvalue()).decode('ascii')}"
-                        church.setdefault("special", []).append({
-                            "title": sp_title.strip(),
-                            "date": sp_date.strip(),
-                            "description": sp_desc.strip(),
-                            "poster": poster_uri,
-                        })
-                        save_data()
-                        st.success("Evento especial cadastrado com sucesso!")
-                        st.rerun()
+            sp_title = st.text_input("Título do Evento", key="new_sp_title")
+            sp_date = st.text_input("Data do Evento", key="new_sp_date")
+            sp_desc = st.text_area("Descrição / Detalhes", key="new_sp_desc")
+            sp_cartaz = st.file_uploader("Cartaz do evento", type=["jpg", "jpeg", "png", "webp"], key="new_sp_foto")
+            if st.button("Publicar Evento Especial", key="new_sp_pub"):
+                if not (sp_title.strip() and sp_date.strip()):
+                    st.error("Informe o título e a data.")
+                else:
+                    poster_uri = ""
+                    if sp_cartaz is not None:
+                        poster_uri, erro = encode_cartaz(sp_cartaz, "especial")
+                        if erro:
+                            st.error(erro)
+                            st.stop()
+                        st.info("Foto recebida. Publicando...")
+                    church.setdefault("special", []).append({
+                        "title": sp_title.strip(),
+                        "date": sp_date.strip(),
+                        "description": sp_desc.strip(),
+                        "poster": poster_uri,
+                    })
+                    save_data()
+                    if poster_uri:
+                        st.success("Evento publicado com cartaz.")
                     else:
-                        st.error("Informe pelo menos o título e a data.")
+                        st.warning("Evento publicado, mas sem foto. Envie o cartaz em Editar.")
+                    st.rerun()
 
     st.markdown("<h2 style='margin-top:2rem;'>Avisos & Departamentos</h2>", unsafe_allow_html=True)
     if church.get("notices"):
@@ -2694,12 +2751,6 @@ def render_hoje():
         promos = home_promos()
         if promos:
             for item in promos:
-                poster = item.get("poster") or ""
-                poster_html = (
-                    f'<img src="{poster}" alt="Cartaz" style="width:100%;max-width:520px;border-radius:16px;margin-top:12px;display:block;">'
-                    if str(poster).startswith(("data:image", "http"))
-                    else ""
-                )
                 tag = "Utilidade pública" if item.get("kind") == "utilidade" else "Evento especial"
                 st.markdown(
                     f"""
@@ -2709,11 +2760,11 @@ def render_hoje():
                         <p style="font-size:1.15rem; margin-bottom:4px;"><b>Local:</b> {safe(item.get('church', ''))} ({safe(item.get('district', ''))})</p>
                         <p style="font-size:1.15rem; margin-bottom:4px;"><b>Data:</b> {safe(item.get('date') or 'Confira no cartaz')}</p>
                         <p style="font-size:1.05rem; color:#555;">{safe(item.get('description', ''))}</p>
-                        {poster_html}
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
+                show_cartaz(item.get("poster"))
         else:
             st.info("Nenhum comunicado cadastrado no momento.")
 
