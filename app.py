@@ -760,8 +760,17 @@ st.markdown(
 
     .block-container {
         max-width: 1140px;
-        padding-top: 1rem;
+        padding-top: 0.6rem;
         padding-bottom: 2.5rem;
+        padding-left: 0.7rem;
+        padding-right: 0.7rem;
+    }
+    @media (max-width: 700px) {
+        .block-container {
+            padding-top: 0.4rem;
+            padding-left: 0.35rem;
+            padding-right: 0.35rem;
+        }
     }
 
     header[data-testid="stHeader"] { background: transparent; }
@@ -820,8 +829,8 @@ st.markdown(
     /* LOGO E BANNER SUPERIOR */
     .hero-banner-container {
         width: 100%;
-        max-width: 760px;
-        margin: 0 auto 10px;
+        max-width: 900px;
+        margin: 0 auto 8px;
         border-radius: var(--radius-lg);
         overflow: hidden;
         background-color: #000000;
@@ -856,9 +865,9 @@ st.markdown(
     }
     .banner-standalone-button {
         width: 100%;
-        max-width: 760px;
-        margin: 0 auto 10px;
-        padding: 14px 24px;
+        max-width: 900px;
+        margin: 0 auto 8px;
+        padding: 12px 16px;
         background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
         border: 2px solid var(--accent-blue);
         border-radius: 999px;
@@ -885,7 +894,7 @@ st.markdown(
         font-weight: 600;
         color: #FFFFFF !important;
         line-height: 1.3;
-        white-space: nowrap;
+        white-space: normal;
     }
 
     /* BOTÃO ESPECIAL PISCANTE */
@@ -935,14 +944,14 @@ st.markdown(
         justify-content: center;
         align-items: center;
         width: 100%;
-        margin: 10px auto;
+        margin: 8px auto;
     }
 
     .crencas-standalone-button {
         width: 100%;
-        max-width: 760px;
+        max-width: 900px;
         min-height: 52px;
-        padding: 12px 24px;
+        padding: 12px 16px;
         background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
         border: 2px solid var(--accent-blue);
         border-radius: 999px;
@@ -966,62 +975,65 @@ st.markdown(
 
     .home-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 10px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
         width: 100%;
-        margin: 10px auto 16px;
+        max-width: 900px;
+        margin: 8px auto 10px;
     }
     .home-grid a {
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
-        min-height: 52px;
-        padding: 10px 8px;
-        border-radius: 999px;
+        height: 48px;
+        min-height: 48px;
+        max-height: 48px;
+        padding: 4px 6px;
+        border-radius: 24px;
         text-decoration: none;
-        background: linear-gradient(180deg, #1e4d61 0%, #163445 100%);
-        border: 1px solid #2a6a82;
+        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
+        border: 2px solid var(--accent-blue);
         color: #fff !important;
         font-family: 'Playfair Display', Georgia, serif;
-        font-size: clamp(0.78rem, 1.6vw, 1.05rem);
+        font-size: clamp(0.62rem, 1.5vw, 0.95rem);
         font-weight: 700;
-        line-height: 1.2;
+        line-height: 1.15;
         box-sizing: border-box;
-    }
-    @media (max-width: 700px) {
-        .home-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-        }
-        .home-grid a {
-            min-height: 64px;
-            font-size: 0.68rem;
-            padding: 6px 3px;
-        }
+        overflow: hidden;
     }
     .home-wide {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
+        gap: 8px;
         width: 100%;
-        margin: 0 auto 16px;
+        max-width: 900px;
+        margin: 0 auto 12px;
     }
     .home-wide a {
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
-        min-height: 52px;
-        padding: 12px 16px;
-        border-radius: 999px;
+        height: 48px;
+        min-height: 48px;
+        max-height: 48px;
+        padding: 6px 10px;
+        border-radius: 24px;
         text-decoration: none;
-        background: linear-gradient(180deg, #1e4d61 0%, #163445 100%);
-        border: 1px solid #2a6a82;
+        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
+        border: 2px solid var(--accent-blue);
         color: #fff !important;
         font-family: 'Playfair Display', Georgia, serif;
-        font-size: clamp(0.95rem, 2vw, 1.15rem);
+        font-size: clamp(0.78rem, 2vw, 1.05rem);
         font-weight: 700;
+        box-sizing: border-box;
+    }
+    section.hero {
+        width: 100%;
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     /* ESTRUTURA DOS CARDS DE DISTRITOS */
