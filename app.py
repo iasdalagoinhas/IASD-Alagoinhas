@@ -817,6 +817,19 @@ def maps_url(church):
     query = church_address(church)
     return "https://www.google.com/maps/search/?api=1&query=" + html.escape(query, quote=True)
 
+def encode_cartaz(upload):
+    if upload is None:
+        return "", "Nenhuma foto selecionada."
+    raw = upload.getvalue()
+    if not raw:
+        return "", "O arquivo veio vazio. Tente outro."
+    if len(raw) > 1_800_000:
+        return "", "A foto está grande demais (máximo cerca de 1,5 MB). Reduza a imagem e tente de novo."
+    mime = upload.type or "image/jpeg"
+    if mime not in ("image/jpeg", "image/jpg", "image/png", "image/webp"):
+        mime = "image/jpeg"
+    return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}", ""
+
 def church_display_name(name):
     raw = str(name or "").strip()
     prefix = "Igreja Adventista"
@@ -1749,18 +1762,32 @@ def render_home():
             st.session_state.show_edit_utilidade = not st.session_state.get("show_edit_utilidade", False)
 
     if can_edit() and st.session_state.get("show_edit_utilidade", False):
-        with st.form("form_edit_utilidade"):
-            u_title = st.text_input("Título do Aviso", utilidade.get("title", ""))
-            u_text = st.text_area("Mensagem de Utilidade Pública", utilidade.get("text", ""), height=150)
-            if st.form_submit_button("Salvar Mensagem"):
-                st.session_state.info_pages["utilidade_publica"] = {
-                    "title": u_title.strip(),
-                    "text": u_text.strip()
-                }
+        u_title = st.text_input("Título do Aviso", utilidade.get("title", ""), key="u_title_home")
+        u_text = st.text_area("Mensagem de Utilidade Pública", utilidade.get("text", ""), height=150, key="u_text_home")
+        u_foto = st.file_uploader("Cartaz / foto (jpg, png ou webp, até 1,5 MB)", type=["jpg", "jpeg", "png", "webp"], key="u_foto_home")
+        if utilidade.get("poster"):
+            st.caption("Já existe um cartaz salvo. Envie outro só se quiser substituir.")
+        if st.button("Salvar mensagem e foto", key="save_utilidade_home"):
+            poster_uri = utilidade.get("poster") or ""
+            if u_foto is not None:
+                poster_uri, erro = encode_cartaz(u_foto)
+                if erro:
+                    st.error(erro)
+                    st.stop()
+                st.info("Foto convertida. Gravando...")
+            st.session_state.info_pages["utilidade_publica"] = {
+                "title": u_title.strip(),
+                "text": u_text.strip(),
+                "poster": poster_uri,
+                "published": True,
+            }
+            try:
                 save_info()
+                st.success("Utilidade pública salva com " + ("foto." if poster_uri else "texto (sem foto)."))
                 st.session_state.show_edit_utilidade = False
-                st.success("Mensagem de utilidade pública atualizada!")
                 st.rerun()
+            except Exception as exc:
+                st.error("Não foi possível gravar o arquivo: " + str(exc))
 
     st.markdown(
         f"""
@@ -1910,8 +1937,11 @@ def render_membros_page():
                 else:
                     poster_uri = ""
                     if imagem is not None:
-                        mime = imagem.type or "image/jpeg"
-                        poster_uri = f"data:{mime};base64,{base64.b64encode(imagem.getvalue()).decode('ascii')}"
+                        poster_uri, erro = encode_cartaz(imagem)
+                        if erro:
+                            st.error(erro)
+                            st.stop()
+                        st.info("Foto recebida. Publicando...")
                     if tipo == "Utilidade pública":
                         st.session_state.info_pages["utilidade_publica"] = {
                             "title": titulo.strip(),
