@@ -133,18 +133,7 @@ FALLBACK_DISTRICTS = {
                 "2026-09-26": {"preacher": "Gilberto Barreto", "elder": "Conceição"},
                 "2026-09-27": {"preacher": "Pr. Jessé Boaventura", "elder": "Yvison Paulo"},
                 "2026-09-30": {"preacher": "Brendon Cerqueira", "elder": "Gilberto Barreto"},
-            }, "ja": [], "special": [
-                {
-                    "title": "10 anos do Quarteto Vocal Ados",
-                    "date": "12/09/2026 · 16h30",
-                    "description": "Tarde especial de louvor e gratidão na Praça da Bíblia, Alagoinhas/BA.",
-                },
-                {
-                    "title": "Inauguração do Ministério da Criança",
-                    "date": "12/09/2026 · a partir das 9h",
-                    "description": "Celebração com inscrição das crianças, cerimônia de promoção de classe e programação especial. Equipe: Eliací e Edpaula.",
-                },
-            ]},
+            }, "ja": [], "special": []},
             {"name": "Igreja Adventista Santa Terezinha", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Igreja Adventista Tupy Caldas", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Igreja Adventista Rua do Catu", "type": "Igreja", "location": "Rua São Jerônimo, 173 — Catu, Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
@@ -264,8 +253,10 @@ DEFAULT_INFO = {
     "missao": {"title": "Missão", "text": "A missão da Igreja Adventista do Sétimo Dia é pregar o evangelho eterno a todas as pessoas, fazer discípulos e preparar um povo para o encontro com Jesus."},
     "esperanca": {"title": "Esperança", "text": "Nossa esperança é a volta de Cristo. Essa certeza dá sentido à fé, à comunhão e ao serviço."},
     "utilidade_publica": {
-        "title": "Setembro da Esperança — 13/09/2026",
-        "text": "Cuidando da mente, fortalecendo a fé. No domingo 13/09, das 14h às 18h, atendimento com psicólogos no Espaço Novo Tempo (Igreja Adventista Central de Alagoinhas — Rua Benjamin Constant, Centro). Aberto a membros, famílias, vizinhos e visitantes. Agendamento prévio pelo WhatsApp (75) 99831-0549. Departamento de Saúde."
+        "title": "",
+        "text": "",
+        "poster": "",
+        "published": False,
     }
 }
 
@@ -779,19 +770,47 @@ def today_ja():
                 )
     return rows
 
+SKIP_SPECIAL_TITLES = {
+    "10 anos do Quarteto Vocal Ados",
+    "Inauguração do Ministério da Criança",
+}
+
 def all_special_events():
     rows = []
     for district_name, district, church in iter_communities():
         for event in church.get("special", []):
+            title = event.get("title", "Evento especial")
+            if title in SKIP_SPECIAL_TITLES:
+                continue
             rows.append(
                 {
+                    "kind": "especial",
                     "district": district_name,
                     "church": church["name"],
-                    "title": event.get("title", "Evento especial"),
+                    "title": title,
                     "date": event.get("date", ""),
                     "description": event.get("description", ""),
+                    "poster": event.get("poster", ""),
                 }
             )
+    return rows
+
+def home_promos():
+    rows = []
+    util = (st.session_state.get("info_pages") or {}).get("utilidade_publica") or {}
+    if util.get("published") or util.get("poster") or (util.get("title") and util.get("text")):
+        rows.append(
+            {
+                "kind": "utilidade",
+                "district": "Alagoinhas",
+                "church": "IASD Alagoinhas",
+                "title": util.get("title") or "Utilidade pública",
+                "date": "",
+                "description": util.get("text", ""),
+                "poster": util.get("poster", ""),
+            }
+        )
+    rows.extend(all_special_events())
     return rows
 
 def church_address(church):
@@ -1052,12 +1071,24 @@ st.markdown(
         box-sizing: border-box;
     }
 
+    .special-pulsing-btn {
+        flex-direction: column;
+        gap: 4px;
+    }
     .special-pulsing-btn h3 {
         font-family: 'Playfair Display', Georgia, serif;
         margin: 0;
         font-size: clamp(1.15rem, 2.2vw, 1.45rem);
         color: #0D1F2D !important;
         font-weight: 800;
+    }
+    .pulse-click {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #0D1F2D;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 
     /* BOTÃO 28 CRENÇAS */
@@ -1447,13 +1478,14 @@ def render_header():
     )
     view = st.session_state.get("view") or "home"
     if view == "home":
-        specials = all_special_events()
-        if specials:
-            primeiro_evento = specials[0]
+        promos = home_promos()
+        if promos:
+            primeiro = promos[0]
             st.markdown(
                 f"""
                 <a class="special-pulsing-btn" href="{nav_href('hoje', extra='especial')}" target="_self">
-                    <h3>🔔 EVENTO ESPECIAL: {safe(primeiro_evento.get("title", "Atividade Especial"))} — {safe(primeiro_evento.get("church", ""))}</h3>
+                    <h3>{safe(primeiro.get("title", "Comunicado"))}</h3>
+                    <span class="pulse-click">Clique aqui</span>
                 </a>
                 """,
                 unsafe_allow_html=True,
@@ -1541,16 +1573,24 @@ def render_home():
     )
 
     utilidade = st.session_state.info_pages.get("utilidade_publica", DEFAULT_INFO["utilidade_publica"])
-    st.markdown(
-        f"""
-        <div class="info" style="border-left: 6px solid #FFD166; background: #FFFDF9; margin-top: 16px;">
-            <span class="tag">Utilidade Pública & Saúde</span>
-            <h3 style="margin-top:10px;">{safe(utilidade.get('title', ''))}</h3>
-            <p style="font-size:1.15rem; line-height:1.6;">{safe(utilidade.get('text', ''))}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if utilidade.get("published") or utilidade.get("poster") or (utilidade.get("title") and utilidade.get("text")):
+        poster = utilidade.get("poster") or ""
+        poster_html = (
+            f'<img src="{poster}" alt="Cartaz" style="width:100%;max-width:520px;border-radius:16px;margin-top:12px;">'
+            if str(poster).startswith(("data:image", "http"))
+            else ""
+        )
+        st.markdown(
+            f"""
+            <div class="info" style="border-left: 6px solid #FFD166; background: #FFFDF9; margin-top: 16px;">
+                <span class="tag">Utilidade Pública</span>
+                <h3 style="margin-top:10px;">{safe(utilidade.get('title', ''))}</h3>
+                <p style="font-size:1.15rem; line-height:1.6;">{safe(utilidade.get('text', ''))}</p>
+                {poster_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     if can_edit():
         if st.button("⚙️ Editar mensagem de Utilidade Pública", key="edit_utilidade_toggle"):
@@ -1691,14 +1731,14 @@ def render_membros_page():
             st.markdown("### Publicar cartaz ou evento da igreja selecionada")
             st.caption(f"Igreja atual: {church_obj['name']}")
             with st.form("form_cartaz_painel"):
-                tipo = st.selectbox("Tipo", ["Aviso de departamento (cartaz)", "Evento especial"])
-                titulo = st.text_input("Departamento ou título do evento")
+                tipo = st.selectbox("Tipo", ["Utilidade pública", "Evento especial", "Aviso de departamento (cartaz)"])
+                titulo = st.text_input("Título")
                 data_ev = st.text_input("Data (se for evento especial)", "")
                 texto = st.text_area("Texto / descrição")
                 imagem = st.file_uploader("Cartaz (jpg, png ou webp)", type=["jpg", "jpeg", "png", "webp"])
                 if st.form_submit_button("Publicar"):
                     if not titulo.strip():
-                        st.error("Informe o título ou o departamento.")
+                        st.error("Informe o título.")
                     elif imagem is None and not texto.strip():
                         st.error("Envie o cartaz ou escreva o texto.")
                     else:
@@ -1706,21 +1746,32 @@ def render_membros_page():
                         if imagem is not None:
                             mime = imagem.type or "image/jpeg"
                             poster_uri = f"data:{mime};base64,{base64.b64encode(imagem.getvalue()).decode('ascii')}"
-                        if tipo.startswith("Evento"):
+                        if tipo == "Utilidade pública":
+                            st.session_state.info_pages["utilidade_publica"] = {
+                                "title": titulo.strip(),
+                                "text": texto.strip(),
+                                "poster": poster_uri,
+                                "published": True,
+                            }
+                            save_info()
+                            st.success("Utilidade pública publicada. Aparece piscando na página inicial.")
+                        elif tipo == "Evento especial":
                             church_obj.setdefault("special", []).append({
                                 "title": titulo.strip(),
                                 "date": data_ev.strip() or "Data a definir",
                                 "description": texto.strip(),
                                 "poster": poster_uri,
                             })
+                            save_data()
+                            st.success("Evento especial publicado. Aparece piscando na página inicial.")
                         else:
                             church_obj.setdefault("notices", []).append({
                                 "department": titulo.strip(),
                                 "text": texto.strip(),
                                 "poster": poster_uri,
                             })
-                        save_data()
-                        st.success("Publicado. O cartaz aparece no perfil da igreja.")
+                            save_data()
+                            st.success("Aviso publicado no perfil da igreja.")
                         st.rerun()
         else:
             st.info("Somente pastor, ancião, líder ou Master publica cartaz.")
@@ -2458,23 +2509,31 @@ def render_hoje():
     )
 
     if kind == "especial":
-        specials = all_special_events()
-        if specials:
-            for item in specials:
+        promos = home_promos()
+        if promos:
+            for item in promos:
+                poster = item.get("poster") or ""
+                poster_html = (
+                    f'<img src="{poster}" alt="Cartaz" style="width:100%;max-width:520px;border-radius:16px;margin-top:12px;display:block;">'
+                    if str(poster).startswith(("data:image", "http"))
+                    else ""
+                )
+                tag = "Utilidade pública" if item.get("kind") == "utilidade" else "Evento especial"
                 st.markdown(
                     f"""
                     <div class="agenda" style="border-left: 6px solid var(--accent-gold);">
-                        <span class="tag">Evento Especial</span>
+                        <span class="tag">{tag}</span>
                         <h3 style="font-size:1.4rem; margin-top:6px;">{safe(item['title'])}</h3>
-                        <p style="font-size:1.15rem; margin-bottom:4px;"><b>Igreja:</b> {safe(item['church'])} ({safe(item['district'])})</p>
-                        <p style="font-size:1.15rem; margin-bottom:4px;"><b>Data:</b> {safe(item['date'])}</p>
-                        <p style="font-size:1.05rem; color:#555;">{safe(item['description'])}</p>
+                        <p style="font-size:1.15rem; margin-bottom:4px;"><b>Local:</b> {safe(item.get('church', ''))} ({safe(item.get('district', ''))})</p>
+                        <p style="font-size:1.15rem; margin-bottom:4px;"><b>Data:</b> {safe(item.get('date') or 'Confira no cartaz')}</p>
+                        <p style="font-size:1.05rem; color:#555;">{safe(item.get('description', ''))}</p>
+                        {poster_html}
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
         else:
-            st.info("Nenhum evento especial agendado no momento.")
+            st.info("Nenhum comunicado cadastrado no momento.")
 
     elif kind == "prega":
         rows = today_preachers()
