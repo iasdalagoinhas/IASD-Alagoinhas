@@ -2,6 +2,7 @@ import base64
 import copy
 import html
 import json
+import secrets
 from calendar import monthrange
 from datetime import date, datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ INFO_FILE = Path("textos_inicio.json")
 USERS_FILE = Path("usuarios_membros.json")
 REMINDERS_FILE = Path("lembretes_whatsapp.json")
 VISITS_FILE = Path("acessos_site.json")
+SESSIONS_FILE = Path("sessoes_login.json")
 IASD_IMAGE = Path("iasd.jpg")
 COLEGIO_IMAGE = Path("caal.jpg")
 
@@ -131,7 +133,18 @@ FALLBACK_DISTRICTS = {
                 "2026-09-26": {"preacher": "Gilberto Barreto", "elder": "Conceição"},
                 "2026-09-27": {"preacher": "Pr. Jessé Boaventura", "elder": "Yvison Paulo"},
                 "2026-09-30": {"preacher": "Brendon Cerqueira", "elder": "Gilberto Barreto"},
-            }, "ja": [], "special": []},
+            }, "ja": [], "special": [
+                {
+                    "title": "10 anos do Quarteto Vocal Ados",
+                    "date": "12/09/2026 · 16h30",
+                    "description": "Tarde especial de louvor e gratidão na Praça da Bíblia, Alagoinhas/BA.",
+                },
+                {
+                    "title": "Inauguração do Ministério da Criança",
+                    "date": "12/09/2026 · a partir das 9h",
+                    "description": "Celebração com inscrição das crianças, cerimônia de promoção de classe e programação especial. Equipe: Eliací e Edpaula.",
+                },
+            ]},
             {"name": "Igreja Adventista Santa Terezinha", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Igreja Adventista Tupy Caldas", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Igreja Adventista Rua do Catu", "type": "Igreja", "location": "Rua São Jerônimo, 173 — Catu, Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
@@ -251,8 +264,8 @@ DEFAULT_INFO = {
     "missao": {"title": "Missão", "text": "A missão da Igreja Adventista do Sétimo Dia é pregar o evangelho eterno a todas as pessoas, fazer discípulos e preparar um povo para o encontro com Jesus."},
     "esperanca": {"title": "Esperança", "text": "Nossa esperança é a volta de Cristo. Essa certeza dá sentido à fé, à comunhão e ao serviço."},
     "utilidade_publica": {
-        "title": "Setembro Amarelo — Valorização da Vida",
-        "text": "Falar é a melhor opção. Se você precisa de apoio emocional ou conhece alguém que esteja passando por momentos difíceis, busque ajuda! Ligue 188 (CVV - Centro de Valorização da Vida) ou procure nossa liderança para apoio e oração."
+        "title": "Setembro da Esperança — 13/09/2026",
+        "text": "Cuidando da mente, fortalecendo a fé. No domingo 13/09, das 14h às 18h, atendimento com psicólogos no Espaço Novo Tempo (Igreja Adventista Central de Alagoinhas — Rua Benjamin Constant, Centro). Aberto a membros, famílias, vizinhos e visitantes. Agendamento prévio pelo WhatsApp (75) 99831-0549. Departamento de Saúde."
     }
 }
 
@@ -475,6 +488,12 @@ def merge_defaults_without_duplicates(saved_district, default_district):
                     saved["schedule"].update(community["schedule"])
                     if community.get("elder_month"):
                         saved["elder_month"] = community["elder_month"]
+                    if community.get("special"):
+                        saved.setdefault("special", [])
+                        have = {(e.get("title"), e.get("date")) for e in saved["special"]}
+                        for event in community["special"]:
+                            if (event.get("title"), event.get("date")) not in have:
+                                saved["special"].append(copy.deepcopy(event))
                     break
     return saved_district
 
@@ -548,6 +567,75 @@ def save_info():
         encoding="utf-8",
     )
 
+def load_sessions():
+    if SESSIONS_FILE.exists():
+        try:
+            data = json.loads(SESSIONS_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except (OSError, json.JSONDecodeError):
+            pass
+    return {}
+
+def save_sessions(data):
+    SESSIONS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def ensure_sid():
+    if not st.session_state.get("sid"):
+        st.session_state.sid = secrets.token_hex(12)
+    return st.session_state.sid
+
+def bind_login(user):
+    sid = ensure_sid()
+    data = load_sessions()
+    data[sid] = user.get("username", "")
+    save_sessions(data)
+    st.session_state.user_logged = user
+
+def unbind_login():
+    sid = st.session_state.get("sid")
+    data = load_sessions()
+    if sid and sid in data:
+        del data[sid]
+        save_sessions(data)
+    st.session_state.user_logged = None
+
+def restore_login():
+    params = st.query_params
+    sid = params.get("s") or st.session_state.get("sid")
+    if params.get("s"):
+        st.session_state.sid = params.get("s")
+    if st.session_state.get("user_logged"):
+        return
+    if not sid:
+        return
+    username = str(load_sessions().get(sid) or "").strip()
+    if not username:
+        return
+    found = next(
+        (
+            u
+            for u in load_users()
+            if str(u.get("username", "")).strip().casefold() == username.casefold() and u.get("approved")
+        ),
+        None,
+    )
+    if found:
+        st.session_state.user_logged = found
+
+def nav_href(view="home", extra=None, district=None, church=None):
+    sid = st.session_state.get("sid") or ""
+    parts = [f"view={view}"]
+    if extra:
+        parts.append(f"extra={extra}")
+    if district:
+        parts.append(f"district={district}")
+    if church is not None:
+        parts.append(f"church={church}")
+    if sid:
+        parts.append(f"s={sid}")
+    return "?" + "&".join(parts)
+
 def go(view, district=None, church_index=None, extra=None):
     st.session_state.view = view
     st.session_state.district = district
@@ -560,10 +648,10 @@ def go(view, district=None, church_index=None, extra=None):
         params["district"] = district
     if church_index is not None:
         params["church"] = str(church_index)
-    if view == "home":
-        st.query_params.clear()
-    else:
-        st.query_params.from_dict(params)
+    sid = st.session_state.get("sid")
+    if sid:
+        params["s"] = sid
+    st.query_params.from_dict(params)
     st.rerun()
 
 def apply_query_params():
@@ -1364,16 +1452,16 @@ def render_header():
             primeiro_evento = specials[0]
             st.markdown(
                 f"""
-                <a class="special-pulsing-btn" href="?view=hoje&extra=especial" target="_self">
+                <a class="special-pulsing-btn" href="{nav_href('hoje', extra='especial')}" target="_self">
                     <h3>🔔 EVENTO ESPECIAL: {safe(primeiro_evento.get("title", "Atividade Especial"))} — {safe(primeiro_evento.get("church", ""))}</h3>
                 </a>
                 """,
                 unsafe_allow_html=True,
             )
         st.markdown(
-            """
+            f"""
             <div class="crencas-button-container">
-                <a class="crencas-standalone-button" href="?view=crencas" target="_self">
+                <a class="crencas-standalone-button" href="{nav_href('crencas')}" target="_self">
                     <h3>Conheça as 28 Crenças Fundamentais</h3>
                 </a>
             </div>
@@ -1414,24 +1502,24 @@ def render_footer(second_text="“Servi ao Senhor com alegria.” — Salmo 100:
 # Visualização: Home
 def render_home():
     st.markdown(
-        """
+        f"""
         <div class="home-grid">
-            <a href="?view=home" target="_self">Início</a>
-            <a href="?view=districts" target="_self">Distritos</a>
-            <a href="?view=education" target="_self">Educação</a>
-            <a href="?view=membros" target="_self">Área para membros</a>
-            <a href="?view=info&extra=distritos" target="_self">Três Distritos</a>
-            <a href="?view=info&extra=comunidades" target="_self">Vinte e seis igrejas</a>
-            <a href="?view=info&extra=missao" target="_self">Nossa Missão</a>
-            <a href="?view=info&extra=esperanca" target="_self">Nossa Esperança</a>
-            <a href="?view=hoje&extra=prega" target="_self">Veja quem prega hoje</a>
-            <a href="?view=hoje&extra=pastor" target="_self">Onde o pastor está?</a>
-            <a href="?view=hoje&extra=ja" target="_self">Onde tem J.A.?</a>
-            <a href="?view=hoje&extra=mes" target="_self">Qual igreja prego este mês?</a>
+            <a href="{nav_href('home')}" target="_self">Início</a>
+            <a href="{nav_href('districts')}" target="_self">Distritos</a>
+            <a href="{nav_href('education')}" target="_self">Educação</a>
+            <a href="{nav_href('membros')}" target="_self">Área para membros</a>
+            <a href="{nav_href('info', extra='distritos')}" target="_self">Três Distritos</a>
+            <a href="{nav_href('info', extra='comunidades')}" target="_self">Vinte e seis igrejas</a>
+            <a href="{nav_href('info', extra='missao')}" target="_self">Nossa Missão</a>
+            <a href="{nav_href('info', extra='esperanca')}" target="_self">Nossa Esperança</a>
+            <a href="{nav_href('hoje', extra='prega')}" target="_self">Veja quem prega hoje</a>
+            <a href="{nav_href('hoje', extra='pastor')}" target="_self">Onde o pastor está?</a>
+            <a href="{nav_href('hoje', extra='ja')}" target="_self">Onde tem J.A.?</a>
+            <a href="{nav_href('hoje', extra='mes')}" target="_self">Qual igreja prego este mês?</a>
         </div>
         <div class="home-wide">
-            <a href="?view=oracao" target="_self">Faça seu pedido de oração</a>
-            <a href="?view=estudo" target="_self">Solicitar estudo bíblico</a>
+            <a href="{nav_href('oracao')}" target="_self">Faça seu pedido de oração</a>
+            <a href="{nav_href('estudo')}" target="_self">Solicitar estudo bíblico</a>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1516,7 +1604,7 @@ def render_membros_page():
                     elif not found.get("approved", False):
                         st.warning("Seu cadastro ainda está pendente de aprovação pela liderança da igreja (Pastor, Ancião, Secretário ou Tesoureiro).")
                     else:
-                        st.session_state["user_logged"] = found
+                        bind_login(found)
                         st.success(f"Bem-vindo(a), {found['nome']}!")
                         st.rerun()
 
@@ -1548,7 +1636,7 @@ def render_membros_page():
     if not church_obj:
         st.error("Igreja do membro não encontrada nos registros.")
         if st.button("Sair"):
-            st.session_state["user_logged"] = None
+            unbind_login()
             st.rerun()
         return
 
@@ -1585,18 +1673,57 @@ def render_membros_page():
             unsafe_allow_html=True,
         )
     if st.button("🔴 Sair da Conta", key="btn_logout"):
-        st.session_state["user_logged"] = None
+        unbind_login()
         st.rerun()
 
     # TABS DO PAINEL DO MEMBRO
-    tab_caixa, tab_lider, tab_comissao, tab_tesouraria, tab_aprovacao, tab_senha = st.tabs([
+    tab_caixa, tab_cartaz, tab_lider, tab_comissao, tab_tesouraria, tab_aprovacao, tab_senha = st.tabs([
         "📬 Pedidos recebidos",
+        "🖼️ Cartazes e eventos",
         "👥 Liderança da Igreja",
         "📅 Reunião de Comissão",
         "📊 Relatório da Tesouraria",
         "✅ Aprovação de Membros",
         "🔑 Alterar Senha"
     ])
+    with tab_cartaz:
+        if can_edit():
+            st.markdown("### Publicar cartaz ou evento da igreja selecionada")
+            st.caption(f"Igreja atual: {church_obj['name']}")
+            with st.form("form_cartaz_painel"):
+                tipo = st.selectbox("Tipo", ["Aviso de departamento (cartaz)", "Evento especial"])
+                titulo = st.text_input("Departamento ou título do evento")
+                data_ev = st.text_input("Data (se for evento especial)", "")
+                texto = st.text_area("Texto / descrição")
+                imagem = st.file_uploader("Cartaz (jpg, png ou webp)", type=["jpg", "jpeg", "png", "webp"])
+                if st.form_submit_button("Publicar"):
+                    if not titulo.strip():
+                        st.error("Informe o título ou o departamento.")
+                    elif imagem is None and not texto.strip():
+                        st.error("Envie o cartaz ou escreva o texto.")
+                    else:
+                        poster_uri = ""
+                        if imagem is not None:
+                            mime = imagem.type or "image/jpeg"
+                            poster_uri = f"data:{mime};base64,{base64.b64encode(imagem.getvalue()).decode('ascii')}"
+                        if tipo.startswith("Evento"):
+                            church_obj.setdefault("special", []).append({
+                                "title": titulo.strip(),
+                                "date": data_ev.strip() or "Data a definir",
+                                "description": texto.strip(),
+                                "poster": poster_uri,
+                            })
+                        else:
+                            church_obj.setdefault("notices", []).append({
+                                "department": titulo.strip(),
+                                "text": texto.strip(),
+                                "poster": poster_uri,
+                            })
+                        save_data()
+                        st.success("Publicado. O cartaz aparece no perfil da igreja.")
+                        st.rerun()
+        else:
+            st.info("Somente pastor, ancião, líder ou Master publica cartaz.")
     with tab_caixa:
         st.markdown("### Pedidos de oração e estudos encaminhados a esta igreja")
         inbox = church_obj.get("inbox") or []
@@ -2203,6 +2330,7 @@ def render_church():
                     <h3 style="font-size:1.3rem; margin:6px 0;">{safe(sp.get('title', ''))}</h3>
                     <p style="margin:0; font-size:1.1rem;"><b>Data:</b> {safe(sp.get('date', ''))}</p>
                     <p style="margin:0; font-size:1.05rem; color:#555;">{safe(sp.get('description', ''))}</p>
+                    {f'<img src="{sp.get("poster")}" alt="" style="width:100%;max-width:420px;border-radius:16px;margin-top:12px;">' if str(sp.get("poster") or "").startswith(("data:image", "http")) else ""}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -2216,12 +2344,18 @@ def render_church():
                 sp_title = st.text_input("Título do Evento (ex: Santa Ceia, Semana de Oração)")
                 sp_date = st.text_input("Data do Evento (ex: 20 de Setembro)")
                 sp_desc = st.text_area("Descrição / Detalhes")
+                sp_cartaz = st.file_uploader("Cartaz do evento", type=["jpg", "jpeg", "png", "webp"])
                 if st.form_submit_button("Publicar Evento Especial"):
                     if sp_title.strip() and sp_date.strip():
+                        poster_uri = ""
+                        if sp_cartaz is not None:
+                            mime = sp_cartaz.type or "image/jpeg"
+                            poster_uri = f"data:{mime};base64,{base64.b64encode(sp_cartaz.getvalue()).decode('ascii')}"
                         church.setdefault("special", []).append({
                             "title": sp_title.strip(),
                             "date": sp_date.strip(),
-                            "description": sp_desc.strip()
+                            "description": sp_desc.strip(),
+                            "poster": poster_uri,
                         })
                         save_data()
                         st.success("Evento especial cadastrado com sucesso!")
@@ -2748,6 +2882,10 @@ if "info_pages" not in st.session_state:
 if "show_edit_info" not in st.session_state:
     st.session_state.show_edit_info = False
 
+if "user_logged" not in st.session_state:
+    st.session_state.user_logged = None
+ensure_sid()
+restore_login()
 # Aplicação de Parâmetros e Roteamento
 apply_query_params()
 register_visit()
