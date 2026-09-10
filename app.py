@@ -1674,11 +1674,9 @@ def render_official_menu():
 
 def render_header():
     logo_img = f'<img class="hero-banner-bg" src="{IASD_URI}" alt="Logotipo IASD">' if IASD_URI else ''
-    st.markdown(render_official_menu(), unsafe_allow_html=True)
     view = st.session_state.get("view") or "home"
-    if view == "church":
-        return
     if view == "home":
+        st.markdown(render_official_menu(), unsafe_allow_html=True)
         st.markdown(
             f"""
             <div class="hero-banner-container">
@@ -1703,17 +1701,15 @@ def render_header():
     title, subtitle = current_section_label()
     st.markdown(
         f"""
-        <div class="banner-standalone-button">
-            <div class="line-1">{safe(title)}</div>
-            <div class="line-2">{safe(subtitle)}</div>
+        <div class="off-wrap">
+            <div class="off-top">{safe(title or "IASD Alagoinhas")}</div>
+            <a class="off-bar" href="{nav_href('home')}" target="_self">
+                <strong>← Voltar ao início</strong>
+            </a>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    b1, b2, b3 = st.columns([2.2, 1.1, 2.2])
-    with b2:
-        if st.button("← Voltar ao início", key="nav_back_home"):
-            go("home")
 
 def render_footer(second_text="“Servi ao Senhor com alegria.” — Salmo 100:2"):
     st.markdown(
