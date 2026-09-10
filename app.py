@@ -5,6 +5,12 @@ import json
 from calendar import monthrange
 from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+TZ_BR = ZoneInfo("America/Sao_Paulo")
+
+def today_br():
+    return datetime.now(TZ_BR).date()
 
 import streamlit as st
 
@@ -603,10 +609,10 @@ def iter_communities():
 
 def today_preachers():
     rows = []
-    today = date.today()
+    today = today_br()
     for district_name, district, church in iter_communities():
         for label, schedule_time, person, role in get_program(church, today):
-            if role == "Pregador":
+            if role == "Pregador" and str(person or "").strip() and str(person).strip().casefold() != "a definir":
                 rows.append(
                     {
                         "district": district_name,
@@ -643,7 +649,7 @@ def today_pastors():
 
 def today_ja():
     rows = []
-    today = date.today()
+    today = today_br()
     for district_name, district, church in iter_communities():
         for label, schedule_time, person, role in get_program(church, today):
             if label == "Jovens Adventistas":
@@ -689,7 +695,7 @@ def church_display_name(name):
     return raw, ""
 
 def month_choices(today=None):
-    today = today or date.today()
+    today = today or today_br()
     end_year = today.year + 1
     options = []
     year, month = today.year, today.month
@@ -705,7 +711,7 @@ def churches_for_preacher(name, month=None, year=None):
     name = (name or "").strip().casefold()
     if not name:
         return []
-    today = date.today()
+    today = today_br()
     month = month or today.month
     year = year or today.year
     rows = []
@@ -967,7 +973,7 @@ st.markdown(
     .crencas-standalone-button h3 {
         font-family: 'Playfair Display', Georgia, serif;
         margin: 0;
-        font-size: clamp(1.15rem, 2.2vw, 1.4rem);
+        font-size: clamp(1.35rem, 3.2vw, 1.7rem);
         color: #FFFFFF !important;
         font-weight: 700;
         text-align: center;
@@ -996,7 +1002,7 @@ st.markdown(
         border: 2px solid var(--accent-blue);
         color: #fff !important;
         font-family: 'Playfair Display', Georgia, serif;
-        font-size: clamp(0.62rem, 1.5vw, 0.95rem);
+        font-size: clamp(0.78rem, 1.8vw, 1.05rem);
         font-weight: 700;
         line-height: 1.15;
         box-sizing: border-box;
@@ -1025,7 +1031,7 @@ st.markdown(
         border: 2px solid var(--accent-blue);
         color: #fff !important;
         font-family: 'Playfair Display', Georgia, serif;
-        font-size: clamp(0.78rem, 2vw, 1.05rem);
+        font-size: clamp(0.95rem, 2.3vw, 1.2rem);
         font-weight: 700;
         box-sizing: border-box;
     }
@@ -1998,8 +2004,8 @@ def render_district():
                 f"Selecione uma imagem para a equipe {team.get('sigla', '')}",
                 type=["jpg", "jpeg", "png"],
                 key=f"uploader_team_{team_idx}"
-            )
-            if uploaded_photo is not None:
+              )
+              if uploaded_photo is not None:
                 col_p_ig, col_p_desc = st.columns(2)
                 with col_p_ig:
                     foto_igreja = st.selectbox("Igreja da Foto", [c["name"] for c in district["churches"]], key=f"foto_ig_{team_idx}")
@@ -2371,7 +2377,7 @@ def render_hoje():
             st.info("Nenhum programa J.A. cadastrado para hoje.")
 
     elif kind == "mes":
-        hoje = date.today()
+        hoje = today_br()
         col_m, col_y = st.columns(2)
         with col_m:
             month = st.selectbox("Mês", range(1, 13), index=hoje.month - 1, format_func=lambda item: MONTHS[item - 1])
