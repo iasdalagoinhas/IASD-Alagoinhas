@@ -3,6 +3,7 @@ import copy
 import html
 import json
 import secrets
+from urllib.parse import quote_plus, unquote_plus
 from calendar import monthrange
 from datetime import date, datetime
 from pathlib import Path
@@ -235,6 +236,7 @@ FALLBACK_DISTRICTS = {
                 "2026-09-27": {"preacher": "A definir", "ministry": "Apresentação do Coral — Sheila"},
                 "2026-09-30": {"preacher": "A definir", "ministry": "Ministério dos Homens"},
             }, "ja": [], "special": []},
+            {"name": "15 de Novembro", "type": "Grupo", "location": "15 de Novembro — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Mangalô 1", "type": "Grupo", "location": "Mangalô — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Mangalô 2", "type": "Grupo", "location": "Mangalô — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Manoel Vitorino", "type": "Grupo", "location": "Manoel Vitorino — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
@@ -242,7 +244,6 @@ FALLBACK_DISTRICTS = {
             {"name": "Teresópolis", "type": "Grupo", "location": "Teresópolis — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "2 de Julho", "type": "Grupo", "location": "2 de Julho — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Rua Camaçari", "type": "Grupo", "location": "Rua Camaçari — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
-            {"name": "15 de Novembro", "type": "Grupo", "location": "15 de Novembro — Alagoinhas/BA", "responsible": "Pr. Josimar Martins", "central": False, "schedule": {}, "ja": [], "special": []},
         ],
     },
 }
@@ -501,6 +502,13 @@ def normalize_saved_data(data):
                 data[district_name],
                 default_district,
             )
+    velho = data.get("21 de Setembro", {})
+    churches = velho.get("churches") or []
+    names = [c.get("name") for c in churches]
+    if "15 de Novembro" in names and names.index("15 de Novembro") != 1:
+        item = churches.pop(names.index("15 de Novembro"))
+        churches.insert(1, item)
+        velho["churches"] = churches
     return data
 
 def load_data():
@@ -620,7 +628,7 @@ def nav_href(view="home", extra=None, district=None, church=None):
     if extra:
         parts.append(f"extra={extra}")
     if district:
-        parts.append(f"district={district}")
+        parts.append("district=" + quote_plus(str(district)))
     if church is not None:
         parts.append(f"church={church}")
     if sid:
@@ -652,9 +660,12 @@ def apply_query_params():
         return
     st.session_state.view = view
     st.session_state.extra = params.get("extra")
-    st.session_state.district = params.get("district")
+    raw_district = params.get("district")
+    st.session_state.district = unquote_plus(str(raw_district)) if raw_district else None
     church = params.get("church")
     st.session_state.church_index = int(church) if church and str(church).isdigit() else st.session_state.get("church_index")
+    opened = params.get("open")
+    st.session_state.open_district = unquote_plus(str(opened)) if opened else st.session_state.get("open_district")
 
 def current_church():
     district = st.session_state.districts.get(st.session_state.get("district"))
@@ -867,10 +878,10 @@ st.markdown(
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
 
     :root {
-        --primary-dark: #0D1F2D;
-        --accent-blue: #1A5F7A;
+        --primary-dark: #1B4F4A;
+        --accent-blue: #2F7A73;
         --accent-gold: #C4923A;
-        --bg-main: #F8FAFC;
+        --bg-main: #F3F1EC;
         --card-bg: #FFFFFF;
         --border-color: #E2E8F0;
         --text-dark: #1A202C;
@@ -902,6 +913,157 @@ st.markdown(
     header[data-testid="stHeader"] { background: transparent; }
     [data-testid="stSidebar"] { display: none; }
 
+    .off-wrap { width: 100%; max-width: 900px; margin: 0 auto 8px; }
+    .off-top {
+        background: #2F7A73;
+        color: #fff;
+        font-size: clamp(1.15rem, 3vw, 1.55rem);
+        letter-spacing: 0.02em;
+        text-transform: none;
+        font-weight: 800;
+        padding: 12px 14px;
+        font-family: 'Playfair Display', Georgia, serif;
+        line-height: 1.2;
+    }
+    .off-bar {
+        background: #3D8F86;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        text-decoration: none !important;
+        cursor: pointer;
+    }
+    .off-bar strong { font-size: clamp(0.95rem, 2.4vw, 1.2rem); font-weight: 600; font-family: 'Inter', sans-serif; color: #fff; }
+    .off-menu summary {
+        list-style: none;
+        cursor: pointer;
+        background: #1B4F4A;
+        color: #fff;
+        border: 0;
+        font-weight: 800;
+        padding: 8px 12px;
+        border-radius: 6px;
+    }
+    .off-menu summary::-webkit-details-marker { display: none; }
+    .off-menu[open] .off-panel {
+        display: flex;
+    }
+    .off-panel {
+        display: none;
+        flex-direction: column;
+        background: #F7F4EE;
+        border: 1px solid #d7d0c4;
+        margin-top: 0;
+    }
+    .off-panel a {
+        display: block;
+        padding: 12px 16px;
+        color: #1B4F4A !important;
+        text-decoration: none;
+        border-bottom: 1px solid #e6e0d6;
+        font-weight: 650;
+        font-size: 1rem;
+    }
+    .off-panel a:hover { background: #ebe6dc; }
+    .off-group {
+        background: #F7F4EE;
+        border-bottom: 1px solid #d7d0c4;
+    }
+    .off-group > summary {
+        background: #2F7A73;
+        color: #fff;
+        font-weight: 800;
+        padding: 12px 16px;
+        cursor: pointer;
+        list-style: none;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        font-size: 0.82rem;
+    }
+    .off-group > summary::-webkit-details-marker { display: none; }
+    .off-group a, .off-sub a {
+        display: block;
+        padding: 11px 18px;
+        color: #1B4F4A !important;
+        text-decoration: none;
+        border-bottom: 1px solid #e6e0d6;
+        font-weight: 650;
+    }
+    .off-sub {
+        background: #fff;
+        margin: 0;
+    }
+    .off-sub > summary {
+        padding: 11px 18px;
+        cursor: pointer;
+        font-weight: 700;
+        color: #1B4F4A;
+        list-style: none;
+        border-bottom: 1px solid #e6e0d6;
+    }
+    .off-sub > summary::-webkit-details-marker { display: none; }
+    .off-sub a { padding-left: 28px; font-weight: 600; background: #faf8f3; }
+    .off-dist {
+        display: block !important;
+        padding: 12px 18px !important;
+        color: #1B4F4A !important;
+        font-weight: 700 !important;
+        background: #fff;
+        border-bottom: 1px solid #e6e0d6;
+    }
+    .off-church {
+        display: block !important;
+        padding: 10px 18px 10px 28px !important;
+        color: #2F7A73 !important;
+        font-weight: 600 !important;
+        background: #f7f4ee;
+        border-bottom: 1px solid #e6e0d6;
+        font-size: 0.95rem;
+    }
+    .page-title {
+        text-align: center;
+        padding: 0.6rem 0 1.2rem;
+    }
+    .page-title-main {
+        margin: 0;
+        font-family: 'Playfair Display', Georgia, serif;
+        font-size: clamp(2rem, 5vw, 2.7rem);
+        font-weight: 800;
+        color: #1B4F4A;
+        line-height: 1.15;
+    }
+    .page-title-sub {
+        margin: 6px 0 0;
+        font-family: 'Playfair Display', Georgia, serif;
+        font-size: clamp(1.35rem, 3.4vw, 1.85rem);
+        font-weight: 600;
+        color: #2F7A73;
+        line-height: 1.2;
+    }
+    .page-title-kicker {
+        margin: 10px 0 0;
+        font-size: 0.9rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #6b6358;
+    }
+    .official-box {
+        background: #fff;
+        border-top: 4px solid #2F7A73;
+        padding: 1rem 1.1rem;
+        margin: 0 0 12px;
+    }
+    .official-box h3 {
+        margin: 0 0 6px;
+        font-size: 0.82rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #2F7A73;
+    }
+    .official-box p { margin: 0; font-size: 1.08rem; color: #1B4F4A; }
+
     /* REMOVE ESPAÇOS VAZIOS */
     div[data-testid="stVerticalBlock"] > div:empty,
     div[data-testid="element-container"]:empty {
@@ -930,7 +1092,7 @@ st.markdown(
         border: 2px solid var(--accent-blue) !important;
         border-radius: 999px !important;
         color: #FFFFFF !important;
-        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%) !important;
+        background: linear-gradient(135deg, #2F7A73 0%, #1B4F4A 100%) !important;
         box-shadow: 0 4px 12px rgba(26, 95, 122, 0.25) !important;
         display: flex !important;
         align-items: center !important;
@@ -994,7 +1156,7 @@ st.markdown(
         max-width: 900px;
         margin: 0 auto 8px;
         padding: 12px 16px;
-        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
+        background: linear-gradient(135deg, #2F7A73 0%, #1B4F4A 100%);
         border: 2px solid var(--accent-blue);
         border-radius: 999px;
         box-shadow: 0 6px 16px rgba(26, 95, 122, 0.3);
@@ -1064,14 +1226,14 @@ st.markdown(
         font-family: 'Playfair Display', Georgia, serif;
         margin: 0;
         font-size: clamp(1.15rem, 2.2vw, 1.45rem);
-        color: #0D1F2D !important;
+        color: #1B4F4A !important;
         font-weight: 800;
     }
     .pulse-click {
         font-family: 'Inter', sans-serif;
         font-size: 0.95rem;
         font-weight: 800;
-        color: #0D1F2D;
+        color: #1B4F4A;
         text-transform: uppercase;
         letter-spacing: 0.04em;
     }
@@ -1090,7 +1252,7 @@ st.markdown(
         max-width: 900px;
         min-height: 52px;
         padding: 12px 16px;
-        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
+        background: linear-gradient(135deg, #2F7A73 0%, #1B4F4A 100%);
         border: 2px solid var(--accent-blue);
         border-radius: 999px;
         box-shadow: 0 6px 16px rgba(26, 95, 122, 0.3);
@@ -1130,7 +1292,7 @@ st.markdown(
         padding: 4px 6px;
         border-radius: 24px;
         text-decoration: none;
-        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
+        background: linear-gradient(135deg, #2F7A73 0%, #1B4F4A 100%);
         border: 2px solid var(--accent-blue);
         color: #fff !important;
         font-family: 'Playfair Display', Georgia, serif;
@@ -1159,7 +1321,7 @@ st.markdown(
         padding: 6px 10px;
         border-radius: 24px;
         text-decoration: none;
-        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%);
+        background: linear-gradient(135deg, #2F7A73 0%, #1B4F4A 100%);
         border: 2px solid var(--accent-blue);
         color: #fff !important;
         font-family: 'Playfair Display', Georgia, serif;
@@ -1252,7 +1414,7 @@ st.markdown(
         height: 48px !important;
         margin-top: 14px !important;
         border-radius: 999px !important;
-        background: linear-gradient(135deg, #1A5F7A 0%, #0D1F2D 100%) !important;
+        background: linear-gradient(135deg, #2F7A73 0%, #1B4F4A 100%) !important;
         color: #FFFFFF !important;
         font-family: 'Playfair Display', Georgia, serif !important;
         font-weight: 700 !important;
@@ -1291,7 +1453,7 @@ st.markdown(
         display: inline-block;
         border-radius: 999px;
         padding: 0.35rem 0.9rem;
-        color: #0D1F2D;
+        color: #1B4F4A;
         background: #FFD166;
         font-size: 0.85rem;
         font-weight: 800;
@@ -1451,18 +1613,80 @@ def current_section_label():
         return page.get("title") or "Informação", ""
     return labels.get(view, ("IASD Alagoinhas", ""))
 
+def render_official_menu():
+    districts = st.session_state.get("districts") or FALLBACK_DISTRICTS
+    order = ["Central de Alagoinhas", "21 de Setembro", "Alagoinhas Velha"]
+    labels = {
+        "Central de Alagoinhas": "Distrito Central de Alagoinhas",
+        "21 de Setembro": "Distrito 21 de Setembro",
+        "Alagoinhas Velha": "Distrito Alagoinhas Velha",
+    }
+    opened = st.session_state.get("open_district")
+    church_blocks = []
+    for key in order:
+        toggle = nav_href("home") + "&open=" + quote_plus(key)
+        church_blocks.append(f'<a class="off-dist" href="{toggle}" target="_self">{labels.get(key, key)}</a>')
+        if opened == key:
+            district = districts.get(key) or {}
+            for idx, church in enumerate(district.get("churches") or []):
+                church_blocks.append(
+                    f'<a class="off-church" href="{nav_href("church", district=key, church=idx)}" target="_self">{safe(church.get("name", "Comunidade"))}</a>'
+                )
+    igreja_html = "".join(church_blocks)
+    return f"""
+        <div class="off-wrap">
+            <div class="off-top">Igreja Adventista do Sétimo Dia · Alagoinhas</div>
+            <a class="off-bar" href="{nav_href('home')}&open={quote_plus('igreja')}" target="_self">
+                <strong>Encontre uma igreja em Alagoinhas</strong>
+            </a>
+            <details class="off-menu" open>
+                <summary>Menu</summary>
+                <div class="off-panel">
+                    <a href="{nav_href('home')}" target="_self">Início</a>
+                    <details class="off-group" open>
+                        <summary>Para a igreja</summary>
+                        {igreja_html}
+                    </details>
+                    <details class="off-group">
+                        <summary>Para o membro</summary>
+                        <a href="{nav_href('membros')}" target="_self">Área para membros</a>
+                        <a href="{nav_href('hoje', extra='prega')}" target="_self">Veja quem prega hoje</a>
+                        <a href="{nav_href('hoje', extra='pastor')}" target="_self">Onde o pastor está</a>
+                        <a href="{nav_href('hoje', extra='ja')}" target="_self">Onde tem J.A.?</a>
+                        <a href="{nav_href('hoje', extra='mes')}" target="_self">Qual igreja eu prego este mês?</a>
+                        <a href="{MEDITACAO_POR_DO_SOL}" target="_blank">Meditação do pôr do sol</a>
+                    </details>
+                    <details class="off-group">
+                        <summary>Para o amigo visitante</summary>
+                        <a href="{nav_href('info', extra='distritos')}" target="_self">Três distritos</a>
+                        <a href="{nav_href('info', extra='comunidades')}" target="_self">Vinte e seis igrejas e grupos</a>
+                        <a href="{nav_href('education')}" target="_self">Educação</a>
+                        <a href="{nav_href('crencas')}" target="_self">Conheça as 28 Crenças Fundamentais</a>
+                        <a href="{nav_href('info', extra='missao')}" target="_self">Nossa Missão</a>
+                        <a href="{nav_href('info', extra='esperanca')}" target="_self">Nossa Esperança</a>
+                        <a href="{nav_href('oracao')}" target="_self">Faça seu pedido de oração</a>
+                        <a href="{nav_href('estudo')}" target="_self">Solicitar estudo bíblico</a>
+                    </details>
+                </div>
+            </details>
+        </div>
+    """
+
 def render_header():
     logo_img = f'<img class="hero-banner-bg" src="{IASD_URI}" alt="Logotipo IASD">' if IASD_URI else ''
-    st.markdown(
-        f"""
-        <div class="hero-banner-container">
-            {logo_img}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(render_official_menu(), unsafe_allow_html=True)
     view = st.session_state.get("view") or "home"
+    if view == "church":
+        return
     if view == "home":
+        st.markdown(
+            f"""
+            <div class="hero-banner-container">
+                {logo_img}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         promos = home_promos()
         if promos:
             primeiro = promos[0]
@@ -1475,20 +1699,6 @@ def render_header():
                 """,
                 unsafe_allow_html=True,
             )
-        st.markdown(
-            f"""
-            <div class="crencas-button-container">
-                <a class="crencas-standalone-button" href="{nav_href('crencas')}" target="_self">
-                    <h3>Conheça as 28 Crenças Fundamentais</h3>
-                </a>
-            </div>
-            <div class="banner-standalone-button">
-                <div class="line-1">IASD Alagoinhas.</div>
-                <div class="line-2">Sempre tem uma igreja perto de você!</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
         return
     title, subtitle = current_section_label()
     st.markdown(
@@ -1518,45 +1728,6 @@ def render_footer(second_text="“Servi ao Senhor com alegria.” — Salmo 100:
 
 # Visualização: Home
 def render_home():
-    st.markdown(
-        f"""
-        <div class="home-grid">
-            <a href="{nav_href('home')}" target="_self">Início</a>
-            <a href="{nav_href('districts')}" target="_self">Distritos</a>
-            <a href="{nav_href('education')}" target="_self">Educação</a>
-            <a href="{nav_href('membros')}" target="_self">Área para membros</a>
-            <a href="{nav_href('info', extra='distritos')}" target="_self">Três Distritos</a>
-            <a href="{nav_href('info', extra='comunidades')}" target="_self">Vinte e seis igrejas</a>
-            <a href="{nav_href('info', extra='missao')}" target="_self">Nossa Missão</a>
-            <a href="{nav_href('info', extra='esperanca')}" target="_self">Nossa Esperança</a>
-            <a href="{nav_href('hoje', extra='prega')}" target="_self">Veja quem prega hoje</a>
-            <a href="{nav_href('hoje', extra='pastor')}" target="_self">Onde o pastor está?</a>
-            <a href="{nav_href('hoje', extra='ja')}" target="_self">Onde tem J.A.?</a>
-            <a href="{nav_href('hoje', extra='mes')}" target="_self">Qual igreja prego este mês?</a>
-        </div>
-        <div class="home-wide">
-            <a href="{nav_href('oracao')}" target="_self">Faça seu pedido de oração</a>
-            <a href="{nav_href('estudo')}" target="_self">Solicitar estudo bíblico</a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        f"""
-        <a href="{MEDITACAO_POR_DO_SOL}" target="_blank" style="text-decoration:none">
-            <section class="hero" style="min-height: 180px; background: linear-gradient(120deg, #0D1F2D 0%, #1A5F7A 50%, #C4923A 100%); margin-top:20px;">
-                <div class="hero-content">
-                    <div class="eyebrow">Sexta-feira · {MEDITACAO_DATA}</div>
-                    <h1>Meditação do Pôr do Sol</h1>
-                    <p class="hero-description">Assista no canal oficial do YouTube ↗</p>
-                </div>
-            </section>
-        </a>
-        """,
-        unsafe_allow_html=True,
-    )
-
     utilidade = st.session_state.info_pages.get("utilidade_publica", DEFAULT_INFO["utilidade_publica"])
     if utilidade.get("published") or utilidade.get("poster") or (utilidade.get("title") and utilidade.get("text")):
         poster = utilidade.get("poster") or ""
@@ -1594,6 +1765,21 @@ def render_home():
                 st.session_state.show_edit_utilidade = False
                 st.success("Mensagem de utilidade pública atualizada!")
                 st.rerun()
+
+    st.markdown(
+        f"""
+        <a href="{MEDITACAO_POR_DO_SOL}" target="_blank" style="text-decoration:none">
+            <section class="hero" style="min-height: 180px; background: linear-gradient(120deg, #1B4F4A 0%, #2F7A73 50%, #C4923A 100%); margin-top:20px;">
+                <div class="hero-content">
+                    <div class="eyebrow">Sexta-feira · {MEDITACAO_DATA}</div>
+                    <h1>Meditação do Pôr do Sol</h1>
+                    <p class="hero-description">Assista no canal oficial do YouTube ↗</p>
+                </div>
+            </section>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
 
     render_footer()
 
@@ -1868,7 +2054,7 @@ def render_membros_page():
             for rel in church_obj["tesouraria_relatorios"]:
                 st.markdown(
                     f"""
-                    <div class="agenda" style="border-left:5px solid #1A5F7A;">
+                    <div class="agenda" style="border-left:5px solid #2F7A73;">
                         <span class="tag">{safe(rel.get('mes', 'Mês'))}</span>
                         <h4 style="margin:6px 0;">{safe(rel.get('titulo', 'Relatório Financeiro'))}</h4>
                         <p style="font-size:1.1rem; line-height:1.6;">{safe(rel.get('detalhes', ''))}</p>
@@ -2257,43 +2443,29 @@ def render_church():
     church.setdefault("notices", [])
     church.setdefault("special", [])
     line1, line2 = church_display_name(church["name"])
-    second = f'<br><small style="font-size:1.3rem; color:var(--accent-gold);">{safe(line2)}</small>' if line2 else ""
     address = church_address(church)
     maps = maps_url(church)
 
     st.markdown(
         f"""
-        <section class="detail" style="text-align:center;">
-            <h1>{safe(line1)}{second}</h1>
-            <p>Perfil da Comunidade</p>
+        <section class="page-title">
+            <h1 class="page-title-main">{safe(line1)}</h1>
+            {f'<h2 class="page-title-sub">{safe(line2)}</h2>' if line2 else ""}
+            <p class="page-title-kicker">Perfil</p>
         </section>
+        <div class="official-box">
+            <h3>Endereço</h3>
+            <p>{safe(address)}</p>
+            <p style="margin-top:8px;"><a href="{maps}" target="_blank">Como chegar</a></p>
+        </div>
+        <div class="official-box">
+            <h3>Pastor</h3>
+            <p>{safe(church.get("responsible", "A definir"))}</p>
+            <p style="margin-top:6px; font-size:0.95rem;">Distrito {safe(st.session_state.get("district") or "")}</p>
+        </div>
         """,
         unsafe_allow_html=True,
     )
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(
-            f"""
-            <div class="info">
-                <span class="tag">Distrito Pastoral</span>
-                <h3>{safe(st.session_state.district)}</h3>
-                <p style="font-size:1.15rem;"><b>Responsável:</b> {safe(church.get("responsible", "A definir"))}</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.markdown(
-            f"""
-            <div class="info">
-                <span class="tag">Localização</span>
-                <h3>{safe(address)}</h3>
-                <p style="font-size:1.15rem;"><a href="{maps}" target="_blank" style="color:var(--accent-blue); font-weight:700;">Abrir no Google Maps ↗</a></p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
     # BOTÃO DE CADASTRO DE MEMBROS DA IGREJA
     st.markdown("<br>", unsafe_allow_html=True)
