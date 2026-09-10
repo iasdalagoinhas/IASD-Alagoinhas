@@ -796,22 +796,7 @@ def all_special_events():
     return rows
 
 def home_promos():
-    rows = []
-    util = (st.session_state.get("info_pages") or {}).get("utilidade_publica") or {}
-    if util.get("published") or util.get("poster") or (util.get("title") and util.get("text")):
-        rows.append(
-            {
-                "kind": "utilidade",
-                "district": "Alagoinhas",
-                "church": "IASD Alagoinhas",
-                "title": util.get("title") or "Utilidade pública",
-                "date": "",
-                "description": util.get("text", ""),
-                "poster": util.get("poster", ""),
-            }
-        )
-    rows.extend(all_special_events())
-    return rows
+    return all_special_events()
 
 def church_address(church):
     name = church.get("name", "")
@@ -1730,49 +1715,48 @@ def render_membros_page():
         if can_edit():
             st.markdown("### Publicar cartaz ou evento da igreja selecionada")
             st.caption(f"Igreja atual: {church_obj['name']}")
-            with st.form("form_cartaz_painel"):
-                tipo = st.selectbox("Tipo", ["Utilidade pública", "Evento especial", "Aviso de departamento (cartaz)"])
-                titulo = st.text_input("Título")
-                data_ev = st.text_input("Data (se for evento especial)", "")
-                texto = st.text_area("Texto / descrição")
-                imagem = st.file_uploader("Cartaz (jpg, png ou webp)", type=["jpg", "jpeg", "png", "webp"])
-                if st.form_submit_button("Publicar"):
-                    if not titulo.strip():
-                        st.error("Informe o título.")
-                    elif imagem is None and not texto.strip():
-                        st.error("Envie o cartaz ou escreva o texto.")
+            tipo = st.selectbox("Tipo", ["Utilidade pública", "Evento especial", "Aviso de departamento (cartaz)"], key="tipo_cartaz_painel")
+            titulo = st.text_input("Título", key="titulo_cartaz_painel")
+            data_ev = st.text_input("Data (somente evento especial)", key="data_cartaz_painel")
+            texto = st.text_area("Texto / descrição", key="texto_cartaz_painel")
+            imagem = st.file_uploader("Cartaz (jpg, png ou webp)", type=["jpg", "jpeg", "png", "webp"], key="img_cartaz_painel")
+            if st.button("Publicar", key="btn_pub_cartaz_painel"):
+                if not titulo.strip():
+                    st.error("Informe o título.")
+                elif imagem is None and not texto.strip():
+                    st.error("Envie o cartaz ou escreva o texto.")
+                else:
+                    poster_uri = ""
+                    if imagem is not None:
+                        mime = imagem.type or "image/jpeg"
+                        poster_uri = f"data:{mime};base64,{base64.b64encode(imagem.getvalue()).decode('ascii')}"
+                    if tipo == "Utilidade pública":
+                        st.session_state.info_pages["utilidade_publica"] = {
+                            "title": titulo.strip(),
+                            "text": texto.strip(),
+                            "poster": poster_uri,
+                            "published": True,
+                        }
+                        save_info()
+                        st.success("Utilidade pública publicada na página inicial. Não fica piscando.")
+                    elif tipo == "Evento especial":
+                        church_obj.setdefault("special", []).append({
+                            "title": titulo.strip(),
+                            "date": data_ev.strip() or "Data a definir",
+                            "description": texto.strip(),
+                            "poster": poster_uri,
+                        })
+                        save_data()
+                        st.success("Evento especial publicado. Este é o que pisca na inicial.")
                     else:
-                        poster_uri = ""
-                        if imagem is not None:
-                            mime = imagem.type or "image/jpeg"
-                            poster_uri = f"data:{mime};base64,{base64.b64encode(imagem.getvalue()).decode('ascii')}"
-                        if tipo == "Utilidade pública":
-                            st.session_state.info_pages["utilidade_publica"] = {
-                                "title": titulo.strip(),
-                                "text": texto.strip(),
-                                "poster": poster_uri,
-                                "published": True,
-                            }
-                            save_info()
-                            st.success("Utilidade pública publicada. Aparece piscando na página inicial.")
-                        elif tipo == "Evento especial":
-                            church_obj.setdefault("special", []).append({
-                                "title": titulo.strip(),
-                                "date": data_ev.strip() or "Data a definir",
-                                "description": texto.strip(),
-                                "poster": poster_uri,
-                            })
-                            save_data()
-                            st.success("Evento especial publicado. Aparece piscando na página inicial.")
-                        else:
-                            church_obj.setdefault("notices", []).append({
-                                "department": titulo.strip(),
-                                "text": texto.strip(),
-                                "poster": poster_uri,
-                            })
-                            save_data()
-                            st.success("Aviso publicado no perfil da igreja.")
-                        st.rerun()
+                        church_obj.setdefault("notices", []).append({
+                            "department": titulo.strip(),
+                            "text": texto.strip(),
+                            "poster": poster_uri,
+                        })
+                        save_data()
+                        st.success("Aviso publicado no perfil da igreja.")
+                    st.rerun()
         else:
             st.info("Somente pastor, ancião, líder ou Master publica cartaz.")
     with tab_caixa:
