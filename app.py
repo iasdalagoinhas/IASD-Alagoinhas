@@ -5,7 +5,8 @@ import json
 import secrets
 from urllib.parse import quote_plus, unquote_plus
 from calendar import monthrange
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -38,8 +39,27 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 IASD_IMAGE = Path("iasd.jpg")
 COLEGIO_IMAGE = Path("caal.jpg")
 
-MEDITACAO_POR_DO_SOL = "https://www.youtube.com/watch?v=MIosdlW0bY4"
-MEDITACAO_DATA = "4 de setembro de 2026"
+MEDITACAO_VIDEOS = {
+    date(2026, 9, 4): "https://www.youtube.com/watch?v=MIosdlW0bY4",
+    date(2026, 9, 11): "https://www.youtube.com/watch?v=DW0EERRlXxs",
+}
+
+def last_friday(day=None):
+    day = day or today_br()
+    return day - timedelta(days=(day.weekday() - 4) % 7)
+
+def meditacao_atual():
+    sexta = last_friday()
+    url = MEDITACAO_VIDEOS.get(sexta)
+    if not url:
+        anteriores = [d for d in MEDITACAO_VIDEOS if d <= sexta]
+        if anteriores:
+            sexta = max(anteriores)
+            url = MEDITACAO_VIDEOS[sexta]
+        else:
+            url = "https://www.youtube.com/playlist?list=PLtT7fGpN_s4Jiz440SMiPcHmVrthaHiz-"
+    rotulo = f"{sexta.day} de {MONTHS[sexta.month - 1].lower()} de {sexta.year}"
+    return url, rotulo
 
 CRENCAS_FUNDAMENTAIS = [
     ("1. As Escrituras Sagradas", "A Bíblia é a Palavra de Deus, revelação suficiente para fé e conduta."),
@@ -119,10 +139,10 @@ DEFAULT_TEAMS = [
 
 FALLBACK_DISTRICTS = {
     "Central de Alagoinhas": {
-        "pastor": "Pr. Gesse Boaventura",
+        "pastor": "Pr. Jessé Boaventura",
         "teams": copy.deepcopy(DEFAULT_TEAMS),
         "churches": [
-            {"name": "Igreja Adventista Central de Alagoinhas", "type": "Igreja", "location": "Rua Benjamin Constant, S/N — Centro, Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": True, "elder_month": "Aelson Honorato", "schedule": {
+            {"name": "Igreja Adventista Central de Alagoinhas", "type": "Igreja", "location": "Rua Benjamin Constant, S/N — Centro, Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": True, "elder_month": "Aelson Honorato", "schedule": {
                 "2026-09-02": {"preacher": "Edenia Maria", "elder": "Gilberto Barreto"},
                 "2026-09-05": {"preacher": "Müller Oliveira (Dema Sta. Terezinha)", "elder": "Aelson Honorato"},
                 "2026-09-06": {"preacher": "Eduardo Araújo", "elder": "Aelson Honorato"},
@@ -137,11 +157,26 @@ FALLBACK_DISTRICTS = {
                 "2026-09-27": {"preacher": "Pr. Jessé Boaventura", "elder": "Yvison Paulo"},
                 "2026-09-30": {"preacher": "Brendon Cerqueira", "elder": "Gilberto Barreto"},
             }, "ja": [], "special": []},
-            {"name": "Igreja Adventista Santa Terezinha", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
-            {"name": "Igreja Adventista Tupy Caldas", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
-            {"name": "Igreja Adventista Rua do Catu", "type": "Igreja", "location": "Rua São Jerônimo, 173 — Catu, Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
-            {"name": "Buri", "type": "Grupo", "location": "Buri — Alagoinhas/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
-            {"name": "Aramari", "type": "Grupo", "location": "Aramari/BA", "responsible": "Pr. Gesse Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
+            {"name": "Igreja Adventista Santa Terezinha", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
+            {"name": "Igreja Adventista Tupy Caldas", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
+            {"name": "Igreja Adventista Rua do Catu", "type": "Igreja", "location": "Rua São Jerônimo, 173 — Catu, Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {
+                "2026-09-13": {"preacher": "Master", "ministry": "Culto de adoração"},
+            }, "ja": [], "special": []},
+            {"name": "Buri", "type": "Grupo", "location": "Buri — Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {
+                "2026-09-05": {"deacons": "Wesley / Roque"},
+                "2026-09-06": {"deacons": "Vilmário"},
+                "2026-09-09": {"deacons": "Jocinho"},
+                "2026-09-12": {"deacons": "Givaldo / Edvaldo"},
+                "2026-09-13": {"deacons": "Manoel"},
+                "2026-09-16": {"deacons": "Romildo"},
+                "2026-09-19": {"deacons": "Jocinho / Roque"},
+                "2026-09-20": {"deacons": "Vilmário"},
+                "2026-09-23": {"deacons": "Manoel"},
+                "2026-09-26": {"deacons": "Josué / Altemir"},
+                "2026-09-27": {"deacons": "Vilmário"},
+                "2026-09-30": {"deacons": "Romildo"},
+            }, "ja": [], "special": []},
+            {"name": "Aramari", "type": "Grupo", "location": "Aramari/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
         ],
     },
     "Alagoinhas Velha": {
@@ -266,8 +301,8 @@ DEFAULT_INFO = {
 # CADASTRO INICIAL DOS PASTORES DISTRITAIS
 DEFAULT_USERS = [
     {
-        "nome": "Pr. Gesse Boaventura",
-        "username": "pastor.gesse",
+        "nome": "Pr. Jessé Boaventura",
+        "username": "pastor.jesse",
         "password": "IASD2026",
         "whatsapp": "",
         "church": "Igreja Adventista Central de Alagoinhas",
@@ -402,6 +437,50 @@ def nearest_community(bairro):
                 best = (district_name, church)
     return best if best_score > 0 else first
 
+def _score_local(needle, blob):
+    needle = str(needle or "").strip().casefold()
+    blob = str(blob or "").casefold()
+    score = 0
+    if needle and needle in blob:
+        score += 8
+    for word in needle.replace(",", " ").split():
+        if len(word) > 2 and word in blob:
+            score += 2
+    return score
+
+def nearest_members(bairro, limit=5, only_estudo=False):
+    users = [u for u in load_users() if u.get("approved")]
+    if only_estudo:
+        users = [u for u in users if u.get("interesse_estudo")]
+    scored = []
+    for user in users:
+        church_name = user.get("church", "")
+        blob = f"{user.get('endereco','')} {user.get('bairro','')} {church_name}"
+        for district_name, district in (st.session_state.get("districts") or {}).items():
+            for church in district.get("churches", []):
+                if church.get("name") == church_name:
+                    blob += f" {church.get('location','')} {district_name}"
+        scored.append((_score_local(bairro, blob), user))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    chosen = [user for score, user in scored if score > 0][:limit]
+    if len(chosen) < limit:
+        extras = [user for score, user in scored if user not in chosen]
+        chosen.extend(extras[: limit - len(chosen)])
+    return chosen[:limit]
+
+def deliver_to_members(item, members):
+    if not members:
+        return []
+    users = load_users()
+    names = []
+    destinos = {m.get("username") for m in members}
+    for user in users:
+        if user.get("username") in destinos:
+            user.setdefault("inbox", []).append(item)
+            names.append(user.get("nome") or user.get("username"))
+    save_users(users)
+    return names
+
 def load_reminders():
     if REMINDERS_FILE.exists():
         try:
@@ -459,7 +538,7 @@ def remove_duplicates(communities):
     return clean
 
 def merge_defaults_without_duplicates(saved_district, default_district):
-    saved_district.setdefault("pastor", default_district["pastor"])
+    saved_district["pastor"] = default_district.get("pastor") or saved_district.get("pastor")
     saved_district.setdefault("churches", [])
     saved_district.setdefault("teams", copy.deepcopy(DEFAULT_TEAMS))
     pastor = saved_district["pastor"]
@@ -534,6 +613,10 @@ def load_users():
             users = json.loads(USERS_FILE.read_text(encoding="utf-8"))
             if isinstance(users, list) and users:
                 # Garante que os pastores padrões existam no arquivo caso seja a primeira execução
+                for u in users:
+                    if str(u.get("username", "")).casefold() == "pastor.gesse":
+                        u["username"] = "pastor.jesse"
+                        u["nome"] = "Pr. Jessé Boaventura"
                 existing_usernames = {u["username"].casefold() for u in users}
                 for def_u in DEFAULT_USERS:
                     if def_u["username"].casefold() not in existing_usernames:
@@ -708,6 +791,8 @@ def get_program(church, selected_date):
         programs.insert(0, ("Ministério do culto", "—", custom.get("ministry"), "Ministério"))
     if custom.get("elder") and programs:
         programs.append(("Ancião do dia", "—", custom.get("elder"), "Ancião"))
+    if custom.get("deacons"):
+        programs.append(("Diaconato", "—", custom.get("deacons"), "Diáconos"))
     return programs
 
 def append_json(path, item):
@@ -795,6 +880,8 @@ def all_special_events():
             title = event.get("title", "Evento especial")
             if title in SKIP_SPECIAL_TITLES:
                 continue
+            if not event_ainda_vale(event.get("date")):
+                continue
             key = (title.casefold(), str(event.get("date", "")).casefold(), church["name"])
             rows.append(
                 {
@@ -817,8 +904,27 @@ def all_special_events():
         unique.append(row)
     return unique
 
+def event_ainda_vale(date_text):
+    text = str(date_text or "")
+    found = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", text)
+    if not found:
+        return True
+    day_n, month_n, year_n = int(found.group(1)), int(found.group(2)), int(found.group(3))
+    if year_n < 100:
+        year_n += 2000
+    hour, minute = 23, 59
+    hm = re.search(r"(\d{1,2})\s*h\s*(\d{0,2})", text.casefold())
+    if hm:
+        hour = int(hm.group(1))
+        minute = int(hm.group(2) or 0)
+    try:
+        fim = datetime(year_n, month_n, day_n, hour, minute, tzinfo=TZ_BR)
+    except ValueError:
+        return True
+    return datetime.now(TZ_BR) <= fim
+
 def home_promos():
-    return all_special_events()
+    return [row for row in all_special_events() if event_ainda_vale(row.get("date"))]
 
 def church_address(church):
     name = church.get("name", "")
@@ -1692,7 +1798,7 @@ def render_official_menu():
                         <a href="{nav_href('hoje', extra='pastor')}" target="_self">Onde o pastor está</a>
                         <a href="{nav_href('hoje', extra='ja')}" target="_self">Onde tem J.A.?</a>
                         <a href="{nav_href('hoje', extra='mes')}" target="_self">Qual igreja eu prego este mês?</a>
-                        <a href="{MEDITACAO_POR_DO_SOL}" target="_blank">Meditação do pôr do sol</a>
+                        <a href="{meditacao_atual()[0]}" target="_blank">Meditação do pôr do sol</a>
                     </details>
                     <details class="off-group">
                         <summary>Para o amigo visitante</summary>
@@ -1810,10 +1916,10 @@ def render_home():
 
     st.markdown(
         f"""
-        <a href="{MEDITACAO_POR_DO_SOL}" target="_blank" style="text-decoration:none">
+        <a href="{meditacao_atual()[0]}" target="_blank" style="text-decoration:none">
             <section class="hero" style="min-height: 180px; background: linear-gradient(120deg, #1B4F4A 0%, #2F7A73 50%, #C4923A 100%); margin-top:20px;">
                 <div class="hero-content">
-                    <div class="eyebrow">Sexta-feira · {MEDITACAO_DATA}</div>
+                    <div class="eyebrow">Sexta-feira · {meditacao_atual()[1]}</div>
                     <h1>Meditação do Pôr do Sol</h1>
                     <p class="hero-description">Assista no canal oficial do YouTube ↗</p>
                 </div>
@@ -1912,6 +2018,46 @@ def render_membros_page():
         """,
         unsafe_allow_html=True,
     )
+
+    fresh = next((u for u in load_users() if u.get("username") == logged_user.get("username")), logged_user)
+    quer = st.checkbox(
+        "Tem interesse em dar estudo bíblico? (Pessoas próximas que desejarem estudo bíblico podem ser direcionadas a você.)",
+        value=bool(fresh.get("interesse_estudo")),
+        key="chk_interesse_estudo",
+    )
+    if quer != bool(fresh.get("interesse_estudo")):
+        users = load_users()
+        for u in users:
+            if u.get("username") == logged_user.get("username"):
+                u["interesse_estudo"] = quer
+        save_users(users)
+        st.session_state.user_logged["interesse_estudo"] = quer
+        st.success("Preferência de estudo bíblico atualizada.")
+    end_atual = st.text_input("Seu endereço (para estudo bíblico perto de você)", value=fresh.get("endereco", ""), key="mem_end_edit")
+    bairro_atual = st.text_input("Seu bairro", value=fresh.get("bairro", ""), key="mem_bairro_edit")
+    if st.button("Salvar meu endereço", key="mem_save_end"):
+        users = load_users()
+        for u in users:
+            if u.get("username") == logged_user.get("username"):
+                u["endereco"] = end_atual.strip()
+                u["bairro"] = bairro_atual.strip()
+        save_users(users)
+        st.success("Endereço salvo. Ele será usado para localizar estudos próximos.")
+    pessoais = fresh.get("inbox") or []
+    if pessoais:
+        st.markdown("### Encaminhados para você")
+        for item in reversed(pessoais[-10:]):
+            st.markdown(
+                f"""
+                <div class="agenda">
+                    <span class="tag">{safe(item.get("tipo", "Pedido"))}</span>
+                    <h3>{safe(item.get("nome", ""))}</h3>
+                    <p>{safe(item.get("texto", ""))}</p>
+                    <p><b>Bairro:</b> {safe(item.get("bairro", ""))} · <b>Contato:</b> {safe(item.get("contato", "não informado"))}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     if can_edit():
         visitas = load_visits()
@@ -2525,6 +2671,9 @@ def render_church():
                 m_user = st.text_input("Escolha um Nome de Usuário")
                 m_pass = st.text_input("Escolha uma Senha", type="password")
                 m_whats = st.text_input("WhatsApp com DDD")
+                m_endereco = st.text_input("Endereço (rua, número, complemento)")
+                m_bairro = st.text_input("Bairro onde mora")
+                m_estudo = st.checkbox("Tem interesse em dar estudo bíblico? (Pessoas próximas que desejarem estudo bíblico podem ser direcionadas a você.)")
                 lgpd_ok = lgpd_checkbox("lgpd_membro")
                 st.caption("Nota: Seu cadastro passará pela aprovação do Pastor, Ancião, Secretário ou Tesoureiro antes de liberar seu acesso.")
                 if st.form_submit_button("Enviar Solicitação de Cadastro"):
@@ -2540,6 +2689,9 @@ def render_church():
                                 "username": m_user.strip(),
                                 "password": m_pass,
                                 "whatsapp": m_whats.strip(),
+                                "endereco": m_endereco.strip(),
+                                "bairro": m_bairro.strip(),
+                                "interesse_estudo": bool(m_estudo),
                                 "church": church["name"],
                                 "approved": False,
                                 "lgpd": True,
@@ -2656,47 +2808,50 @@ def render_church():
     st.markdown("<h2 style='margin-top:2rem;'>Avisos & Departamentos</h2>", unsafe_allow_html=True)
     if church.get("notices"):
         for item in church["notices"]:
-            poster = item.get("poster") or ""
-            poster_html = f'<img src="{poster}" alt="Cartaz {safe(item.get("department", ""))}" style="width:100%; max-width:420px; border-radius:16px; margin-top:12px; display:block;">' if poster.startswith("data:image") or poster.startswith("http") else ""
             st.markdown(
                 f"""
                 <div class="agenda">
                     <span class="tag">{safe(item.get("department", "Departamento"))}</span>
                     <p style="margin-top:8px; font-size:1.15rem;">{safe(item.get("text", ""))}</p>
-                    {poster_html}
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+            show_cartaz(item.get("poster"))
     else:
         st.info("Sem avisos de departamentos registrados no momento.")
 
     if can_edit():
         with st.expander("＋ Publicar aviso de departamento"):
-            with st.form("aviso_departamento"):
-                dep_name = st.text_input("Departamento")
-                dep_text = st.text_area("Aviso")
-                cartaz = st.file_uploader("Cartaz do departamento", type=["jpg", "jpeg", "png", "webp"])
-                if st.form_submit_button("Publicar Aviso"):
-                    if not dep_name.strip():
-                        st.error("Informe o departamento.")
-                    elif not dep_text.strip() and cartaz is None:
-                        st.error("Escreva o aviso ou envie o cartaz.")
+            dep_name = st.text_input("Departamento", key="dep_name_new")
+            dep_text = st.text_area("Aviso", key="dep_text_new")
+            cartaz = st.file_uploader("Cartaz do departamento", type=["jpg", "jpeg", "png", "webp"], key="dep_foto_new")
+            if st.button("Publicar Aviso", key="dep_pub_new"):
+                if not dep_name.strip():
+                    st.error("Informe o departamento.")
+                elif not dep_text.strip() and cartaz is None:
+                    st.error("Escreva o aviso ou envie o cartaz.")
+                else:
+                    poster_uri = ""
+                    if cartaz is not None:
+                        poster_uri, erro = encode_cartaz(cartaz, "departamento")
+                        if erro:
+                            st.error(erro)
+                            st.stop()
+                        st.info("Foto recebida. Publicando...")
+                    church.setdefault("notices", []).append(
+                        {
+                            "department": dep_name.strip(),
+                            "text": dep_text.strip(),
+                            "poster": poster_uri,
+                        }
+                    )
+                    save_data()
+                    if poster_uri:
+                        st.success("Aviso publicado com cartaz.")
                     else:
-                        poster_uri = ""
-                        if cartaz is not None:
-                            mime = cartaz.type or "image/jpeg"
-                            encoded = base64.b64encode(cartaz.getvalue()).decode("ascii")
-                            poster_uri = f"data:{mime};base64,{encoded}"
-                        church.setdefault("notices", []).append(
-                            {
-                                "department": dep_name.strip(),
-                                "text": dep_text.strip(),
-                                "poster": poster_uri,
-                            }
-                        )
-                        save_data()
-                        st.rerun()
+                        st.warning("Aviso publicado sem foto.")
+                    st.rerun()
 
     if can_edit():
         with st.expander("⚙️ Editar dados desta comunidade"):
@@ -2877,10 +3032,17 @@ def render_hoje():
                         d1 = st.checkbox("Avisar 1 dia antes", value=atual.get("d1", True))
                         h12 = st.checkbox("Avisar 12 horas antes", value=atual.get("h12", True))
                         h2 = st.checkbox("Avisar 2 horas antes", value=atual.get("h2", True))
+                        outro = st.checkbox("Outro (horário personalizado)", value=atual.get("outro", False))
+                        outro_quando = st.text_input(
+                            "Se marcou Outro, escreva quando avisar (ex: 3 horas antes, 30 minutos antes, no sábado às 7h)",
+                            value=atual.get("outro_quando", ""),
+                        )
                         lgpd_ok = lgpd_checkbox("lgpd_lembrete")
                         if st.form_submit_button("Salvar lembretes", use_container_width=True):
                             if not lgpd_ok:
                                 st.error("É necessário aceitar o termo da LGPD para salvar o WhatsApp.")
+                            elif outro and not outro_quando.strip():
+                                st.error("Marcou Outro. Escreva o horário personalizado.")
                             else:
                                 reminders[logged["username"]] = {
                                     "whatsapp": zap.strip(),
@@ -2888,6 +3050,8 @@ def render_hoje():
                                     "d1": d1,
                                     "h12": h12,
                                     "h2": h2,
+                                    "outro": outro,
+                                    "outro_quando": outro_quando.strip(),
                                     "lgpd": True,
                                     "lgpd_em": datetime.now().isoformat(timespec="minutes"),
                                     "escala": [
@@ -3063,7 +3227,7 @@ def render_oracao():
         <section class="detail">
             <div class="eyebrow">Oração</div>
             <h1>Faça seu pedido de oração</h1>
-            <p>A igreja mais próxima do seu bairro receberá o pedido na área de membros.</p>
+            <p>O pedido será enviado a membros cadastrados próximos do seu bairro.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -3090,7 +3254,6 @@ def render_oracao():
             elif not bairro.strip():
                 st.error("Informe o bairro para localizar a igreja mais próxima.")
             else:
-                destino = nearest_community(bairro)
                 item = {
                     "tipo": "Oração",
                     "quando": datetime.now().isoformat(timespec="minutes"),
@@ -3103,13 +3266,16 @@ def render_oracao():
                     "lgpd_em": datetime.now().isoformat(timespec="minutes"),
                 }
                 append_json(PRAYER_FILE, item)
+                enviados = deliver_to_members(item, nearest_members(bairro, limit=5, only_estudo=False))
+                destino = nearest_community(bairro)
                 if destino:
                     district_name, church = destino
                     church.setdefault("inbox", []).append({**item, "distrito": district_name, "igreja": church["name"]})
                     save_data()
-                    st.success(f"Pedido enviado para a área de membros da {church['name']}.")
+                if enviados:
+                    st.success("Pedido enviado para membros próximos: " + ", ".join(enviados) + ".")
                 else:
-                    st.success("Pedido registrado.")
+                    st.success("Pedido registrado. Quando houver membros cadastrados perto do bairro, eles receberão.")
 
 def render_estudo():
 
@@ -3118,7 +3284,7 @@ def render_estudo():
         <section class="detail">
             <div class="eyebrow">Estudo bíblico</div>
             <h1>Solicitar estudo bíblico</h1>
-            <p>A liderança da igreja mais próxima do seu bairro receberá o pedido.</p>
+            <p>O pedido vai para até cinco membros próximos que se dispuseram a dar estudo bíblico.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -3134,7 +3300,6 @@ def render_estudo():
             elif not (nome.strip() and telefone.strip() and bairro.strip()):
                 st.error("Preencha nome, telefone e endereço/bairro.")
             else:
-                destino = nearest_community(bairro)
                 item = {
                     "tipo": "Estudo bíblico",
                     "quando": datetime.now().isoformat(timespec="minutes"),
@@ -3146,13 +3311,17 @@ def render_estudo():
                     "lgpd_em": datetime.now().isoformat(timespec="minutes"),
                 }
                 append_json(STUDY_FILE, item)
+                professores = nearest_members(bairro, limit=5, only_estudo=True)
+                enviados = deliver_to_members(item, professores)
+                destino = nearest_community(bairro)
                 if destino:
                     district_name, church = destino
                     church.setdefault("inbox", []).append({**item, "distrito": district_name, "igreja": church["name"]})
                     save_data()
-                    st.success(f"Solicitação encaminhada à liderança da {church['name']}.")
+                if enviados:
+                    st.success("Solicitação enviada para até cinco membros próximos dispostos a dar estudo: " + ", ".join(enviados) + ".")
                 else:
-                    st.success("Solicitação registrada.")
+                    st.success("Solicitação registrada. Ainda não há membros próximos marcados para dar estudo bíblico.")
 
 # Inicialização de Estados
 if "districts" not in st.session_state:
