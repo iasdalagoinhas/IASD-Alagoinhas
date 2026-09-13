@@ -160,7 +160,7 @@ FALLBACK_DISTRICTS = {
             {"name": "Igreja Adventista Santa Terezinha", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Igreja Adventista Tupy Caldas", "type": "Igreja", "location": "Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {}, "ja": [], "special": []},
             {"name": "Igreja Adventista Rua do Catu", "type": "Igreja", "location": "Rua São Jerônimo, 173 — Catu, Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {
-                "2026-09-13": {"preacher": "Master", "ministry": "Culto de adoração"},
+                "2026-09-13": {"preacher": "Elenildo", "ministry": "Culto de adoração"},
             }, "ja": [], "special": []},
             {"name": "Buri", "type": "Grupo", "location": "Buri — Alagoinhas/BA", "responsible": "Pr. Jessé Boaventura", "central": False, "schedule": {
                 "2026-09-05": {"deacons": "Wesley / Roque"},
@@ -1967,7 +1967,7 @@ def render_membros_page():
                         st.success(f"Bem-vindo(a), {found['nome']}!")
                         st.rerun()
 
-        st.info("💡 Ainda não possui cadastro? Acesse a página da sua igreja no menu 'Distritos' e clique no botão 'Cadastro de Membros'.")
+        st.info("Ainda não possui cadastro? Abra a página da sua igreja no menu e use o botão Cadastro de Membros.")
         render_footer()
         return
 
@@ -2659,8 +2659,15 @@ def render_church():
         unsafe_allow_html=True,
     )
 
-    # BOTÃO DE CADASTRO DE MEMBROS DA IGREJA
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="official-box">
+            <h3>Cadastro de membros</h3>
+            <p>Ainda não tem usuário? Cadastre-se nesta igreja.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     if st.button("📝 Cadastro de Membros", key="btn_cad_membro", use_container_width=True):
         st.session_state.show_cad_membro = not st.session_state.get("show_cad_membro", False)
 
