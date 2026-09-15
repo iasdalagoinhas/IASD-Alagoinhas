@@ -751,6 +751,8 @@ def apply_query_params():
     st.session_state.church_index = int(church) if church and str(church).isdigit() else st.session_state.get("church_index")
     opened = params.get("open")
     st.session_state.open_district = unquote_plus(str(opened)) if opened else st.session_state.get("open_district")
+    if st.session_state.view == "district" and st.session_state.get("district"):
+        st.session_state.open_district = st.session_state.district
 
 def current_church():
     district = st.session_state.districts.get(st.session_state.get("district"))
@@ -1760,6 +1762,26 @@ def current_section_label():
 def render_official_menu():
     districts = st.session_state.get("districts") or FALLBACK_DISTRICTS
     order = ["Central de Alagoinhas", "21 de Setembro", "Alagoinhas Velha"]
+    if st.session_state.get("view") == "district" and st.session_state.get("district"):
+        key = st.session_state.district
+        label = {
+            "Central de Alagoinhas": "Distrito Central de Alagoinhas",
+            "21 de Setembro": "Distrito 21 de Setembro",
+            "Alagoinhas Velha": "Distrito Alagoinhas Velha",
+        }.get(key, key)
+        district = districts.get(key) or {}
+        items = [f'<a class="off-dist" href="{nav_href("district", district=key)}" target="_self">{label}</a>']
+        for idx, church in enumerate(district.get("churches") or []):
+            items.append(
+                f'<a class="off-church" href="{nav_href("church", district=key, church=idx)}" target="_self">{safe(church.get("name", "Comunidade"))}</a>'
+            )
+        return f"""
+        <div class="off-wrap">
+            <div class="off-top">{safe(label)}</div>
+            <a class="off-bar" href="{nav_href('home')}" target="_self"><strong>← Voltar ao início</strong></a>
+            <div class="off-panel">{''.join(items)}</div>
+        </div>
+        """
     labels = {
         "Central de Alagoinhas": "Distrito Central de Alagoinhas",
         "21 de Setembro": "Distrito 21 de Setembro",
@@ -1768,9 +1790,10 @@ def render_official_menu():
     opened = st.session_state.get("open_district")
     church_blocks = []
     for key in order:
-        toggle = nav_href("home") + "&open=" + quote_plus(key)
-        church_blocks.append(f'<a class="off-dist" href="{toggle}" target="_self">{labels.get(key, key)}</a>')
-        if opened == key:
+        church_blocks.append(
+            f'<a class="off-dist" href="{nav_href("district", district=key)}" target="_self">{labels.get(key, key)}</a>'
+        )
+        if opened == key or (st.session_state.get("view") == "district" and st.session_state.get("district") == key):
             district = districts.get(key) or {}
             for idx, church in enumerate(district.get("churches") or []):
                 church_blocks.append(
@@ -1819,8 +1842,11 @@ def render_official_menu():
 def render_header():
     logo_img = f'<img class="hero-banner-bg" src="{IASD_URI}" alt="Logotipo IASD">' if IASD_URI else ''
     view = st.session_state.get("view") or "home"
-    if view == "home":
+    if view in ("home", "district"):
         st.markdown(render_official_menu(), unsafe_allow_html=True)
+        if view == "district":
+            return
+    if view == "home":
         st.markdown(
             f"""
             <div class="hero-banner-container">
@@ -2385,102 +2411,6 @@ def render_district():
     if not district:
         go("districts")
         return
-
-    church_total, group_total = district_counts(district)
-    st.markdown(
-        f"""
-        <section class="detail">
-            <div class="eyebrow">DISTRITO PASTORAL</div>
-            <h1>{safe(district_name)}</h1>
-            <p>{safe(district_description(district_name, district))}</p>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        f"""
-        <div style="margin: 1.5rem 0;">
-            <h2>Visão Geral</h2>
-            <p style="font-size:1.15rem; color:var(--text-dark); font-weight:600;">Pastor responsável: <b>{safe(district['pastor'])}</b><br>{church_total} igreja(s) e {group_total} grupo(s) cadastrados.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div style="margin: 1.5rem 0;">
-            <h2>Igrejas e Grupos</h2>
-            <p style="font-size:1.15rem; color:var(--text-dark); font-weight:600;">Comunidades cadastradas sob a liderança deste distrito.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if can_edit() and st.button("＋ Adicionar igreja ou grupo", key="add_church"):
-        st.session_state.show_add = True
-
-    if can_edit() and st.session_state.get("show_add", False):
-        with st.expander("Cadastrar nova comunidade", expanded=True):
-            with st.form("new_church", clear_on_submit=True):
-                column_1, column_2 = st.columns(2)
-                with column_1:
-                    new_name = st.text_input("Nome")
-                    new_type = st.selectbox("Tipo", ["Igreja", "Grupo"])
-                with column_2:
-                    new_location = st.text_input("Localização/Endereço", "Alagoinhas/BA")
-                    new_responsible = st.text_input("Responsável", district["pastor"])
-                save = st.form_submit_button("Salvar Registro")
-                if save:
-                    if not new_name.strip():
-                        st.error("O nome é obrigatório.")
-                    else:
-                        district["churches"].append(
-                            {
-                                "name": new_name.strip(),
-                                "type": new_type,
-                                "location": new_location.strip() or "Alagoinhas/BA",
-                                "responsible": new_responsible.strip() or "A definir",
-                                "central": False,
-                                "schedule": {},
-                                "ja": [],
-                                "special": [],
-                            }
-                        )
-                        save_data()
-                        st.session_state.show_add = False
-                        st.rerun()
-
-    churches = district["churches"]
-    for i in range(0, len(churches), 2):
-        pair = churches[i:i + 2]
-        cols = st.columns(2)
-        for idx, church in enumerate(pair):
-            actual_index = i + idx
-            with cols[idx]:
-                if church.get("central"):
-                    tag_label = "Igreja Central"
-                else:
-                    tag_label = church.get("type") or "Igreja"
-                
-                link_url = f"?view=church&district={html.escape(district_name, quote=True)}&church={actual_index}"
-                
-                card_html = (
-                    f'<div class="church-card-box">'
-                    f'<div>'
-                    f'<div class="tag-container"><span class="tag">{safe(tag_label)}</span></div>'
-                    f'<div class="church-title-area"><h3>{safe(church["name"])}</h3></div>'
-                    f'<p style="font-size:1.05rem; color:var(--text-dark); margin-bottom:12px;">{safe(church.get("location", "Alagoinhas/BA"))}</p>'
-                    f'</div>'
-                    f'<div>'
-                    f'<hr style="border:0; border-top:1px solid var(--border-color); margin: 8px 0 12px 0;">'
-                    f'<small style="color:var(--text-dark); font-weight:700; font-size:1.05rem;">Líder: {safe(church.get("responsible", "A definir"))}</small>'
-                    f'<a class="action-btn-link" href="{link_url}" target="_self">Ver Detalhes →</a>'
-                    f'</div>'
-                    f'</div>'
-                )
-                st.markdown(card_html, unsafe_allow_html=True)
 
     # SEÇÃO: EQUIPES DISTRITAIS
     st.markdown("<hr style='border:0; border-top:2px solid var(--border-color); margin:2.5rem 0 1.5rem 0;'>", unsafe_allow_html=True)
@@ -3234,7 +3164,6 @@ def render_oracao():
         <section class="detail">
             <div class="eyebrow">Oração</div>
             <h1>Faça seu pedido de oração</h1>
-            <p>O pedido será enviado a membros cadastrados próximos do seu bairro.</p>
         </section>
         """,
         unsafe_allow_html=True,
@@ -3243,46 +3172,42 @@ def render_oracao():
     with st.form("form_oracao_pagina"):
         nome = st.text_input("Seu nome")
         pedido = st.text_area("Pedido de oração")
+        endereco = ""
         telefone = ""
-        bairro = ""
         if contato:
+            endereco = st.text_input("Endereço")
             telefone = st.text_input("Telefone / WhatsApp")
-            bairro = st.text_input("Endereço / Bairro")
-        else:
-            bairro = st.text_input("Bairro (para encaminhar à igreja mais próxima)")
         lgpd_ok = lgpd_checkbox("lgpd_oracao")
         if st.form_submit_button("Enviar pedido", use_container_width=True):
             if not lgpd_ok:
                 st.error("É necessário aceitar o termo da LGPD para enviar o pedido.")
+            elif not nome.strip():
+                st.error("Informe o nome.")
             elif not pedido.strip():
                 st.error("Escreva o pedido.")
-            elif contato and (not telefone.strip() or not bairro.strip()):
-                st.error("Informe telefone e endereço/bairro para o contato.")
-            elif not bairro.strip():
-                st.error("Informe o bairro para localizar a igreja mais próxima.")
+            elif contato and (not endereco.strip() or not telefone.strip()):
+                st.error("Informe o endereço e o WhatsApp para o contato.")
             else:
                 item = {
                     "tipo": "Oração",
                     "quando": datetime.now().isoformat(timespec="minutes"),
-                    "nome": nome.strip() or "Anônimo",
+                    "nome": nome.strip(),
                     "texto": pedido.strip(),
                     "contato": telefone.strip() if contato else "não informado",
-                    "bairro": bairro.strip(),
+                    "bairro": endereco.strip(),
+                    "endereco": endereco.strip(),
                     "quer_contato": contato,
                     "lgpd": True,
                     "lgpd_em": datetime.now().isoformat(timespec="minutes"),
                 }
                 append_json(PRAYER_FILE, item)
-                enviados = deliver_to_members(item, nearest_members(bairro, limit=5, only_estudo=False))
-                destino = nearest_community(bairro)
+                enviados = deliver_to_members(item, nearest_members(endereco, limit=5, only_estudo=False))
+                destino = nearest_community(endereco)
                 if destino:
                     district_name, church = destino
                     church.setdefault("inbox", []).append({**item, "distrito": district_name, "igreja": church["name"]})
                     save_data()
-                if enviados:
-                    st.success("Pedido enviado para membros próximos: " + ", ".join(enviados) + ".")
-                else:
-                    st.success("Pedido registrado. Quando houver membros cadastrados perto do bairro, eles receberão.")
+                st.success("Pedido enviado.")
 
 def render_estudo():
 
