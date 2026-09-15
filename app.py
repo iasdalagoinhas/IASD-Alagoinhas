@@ -2412,6 +2412,13 @@ def render_district():
         go("districts")
         return
 
+    st.markdown("### Igrejas e grupos")
+    for idx, church in enumerate(district.get("churches") or []):
+        st.markdown(
+            f'<a class="off-church" href="{nav_href("church", district=district_name, church=idx)}" target="_self">{safe(church.get("name", "Comunidade"))}</a>',
+            unsafe_allow_html=True,
+        )
+
     # SEÇÃO: EQUIPES DISTRITAIS
     st.markdown("<hr style='border:0; border-top:2px solid var(--border-color); margin:2.5rem 0 1.5rem 0;'>", unsafe_allow_html=True)
     st.markdown(
@@ -2491,43 +2498,46 @@ def render_district():
                 grid_cols = st.columns(3)
                 for photo_i, photo_data in enumerate(team["photos"]):
                     with grid_cols[photo_i % 3]:
-                        st.image(photo_data["uri"], caption=f"{photo_data.get('church', '')} ({photo_data.get('date', '')})", use_container_width=True)
+                        show_cartaz(photo_data.get("uri") or photo_data.get("path"))
+                        st.caption(f"{photo_data.get('church', '')} ({photo_data.get('date', '')})")
             else:
                 st.info("Nenhuma foto cadastrada para esta equipe até o momento.")
 
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("**Aqui entra a foto da atuação:** abra esta aba 📸 Fotos da Atuação.")
             if can_edit():
-              st.markdown("#### Inserir Foto de Atuação")
               uploaded_photo = st.file_uploader(
-                f"Selecione uma imagem para a equipe {team.get('sigla', '')}",
-                type=["jpg", "jpeg", "png"],
+                "Escolha a foto (jpg ou png)",
+                type=["jpg", "jpeg", "png", "webp"],
                 key=f"uploader_team_{team_idx}"
               )
-              if uploaded_photo is not None:
-                col_p_ig, col_p_desc = st.columns(2)
-                with col_p_ig:
-                    foto_igreja = st.selectbox("Igreja da Foto", [c["name"] for c in district["churches"]], key=f"foto_ig_{team_idx}")
-                with col_p_desc:
-                    foto_data_str = st.text_input("Data / Legenda", date.today().strftime("%d/%m/%Y"), key=f"foto_leg_{team_idx}")
-
-                if st.button("Salvar Foto na Galeria", key=f"btn_save_photo_{team_idx}"):
-                    bytes_data = uploaded_photo.getvalue()
-                    mime = uploaded_photo.type
-                    encoded = base64.b64encode(bytes_data).decode("ascii")
-                    data_uri = f"data:{mime};base64,{encoded}"
-                    
-                    team["photos"].append({
-                        "uri": data_uri,
-                        "church": foto_igreja,
-                        "date": foto_data_str
-                    })
-                    save_data()
-                    st.success("Foto adicionada com sucesso!")
-                    st.rerun()
+              ch_names = [c["name"] for c in district["churches"]] or ["Igreja"]
+              foto_igreja = st.selectbox("Igreja da foto", ch_names, key=f"foto_ig_{team_idx}")
+              foto_data_str = st.text_input("Data / legenda", date.today().strftime("%d/%m/%Y"), key=f"foto_leg_{team_idx}")
+              if st.button("Salvar foto na galeria", key=f"btn_save_photo_{team_idx}"):
+                    if uploaded_photo is None:
+                        st.error("Escolha a foto primeiro.")
+                    else:
+                        path, erro = encode_cartaz(uploaded_photo, f"equipe-{team_idx}")
+                        if erro:
+                            st.error(erro)
+                        else:
+                            team["photos"].append({
+                                "uri": path,
+                                "church": foto_igreja,
+                                "date": foto_data_str
+                            })
+                            save_data()
+                            st.success("Foto salva.")
+                            st.rerun()
+            else:
+              st.caption("Para enviar foto, entre na Área para membros com perfil de pastor, ancião, líder ou Master.")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if can_edit() and st.button("＋ Adicionar outra equipe distrital", key="btn_add_team", use_container_width=True):
-        st.session_state.show_add_team = True
+    if st.button("＋ Adicionar outra equipe distrital", key="btn_add_team", use_container_width=True):
+        if can_edit():
+            st.session_state.show_add_team = True
+        else:
+            st.warning("Entre como pastor, ancião, líder ou Master para cadastrar equipe.")
 
     if can_edit() and st.session_state.get("show_add_team", False):
         with st.expander("Cadastrar Nova Equipe Distrital", expanded=True):
